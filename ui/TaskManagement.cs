@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Security;
 using System.Web.Script.Serialization;
 using System.Xml;
+using System.Text;
 
 namespace CMP90HX.Control
 {
@@ -34,6 +35,60 @@ namespace CMP90HX.Control
         internal const string Name="CMP90HX Auto Unlock";
         internal const string Source="CMP90HX.Control";
         internal const string PowerName="CMP90HX Idle Power Saver";
+        internal const string CleanupName="CMP90HX Uninstall Cleanup";
+        internal static string CleanupScript()
+        {
+            string target=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");
+            return "$ErrorActionPreference='Stop'\r\n"+
+                "$root='"+target.Replace("'","''")+"'\r\n"+
+                "$expected=Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'CMP90HX'\r\n"+
+                "if(![string]::Equals([IO.Path]::GetFullPath($root),$expected,[StringComparison]::OrdinalIgnoreCase)){throw 'Unsafe cleanup root'}\r\n"+
+                "if(@(Get-Service -ErrorAction Stop | Where-Object {$_.Name -eq 'CMP90HXDma'}).Count){throw 'Driver still installed; cleanup deferred'}\r\n"+
+                "function Assert-NoLinks($path){$item=Get-Item -LiteralPath $path -Force; if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){throw 'Linked path refused'}; if($item.PSIsContainer){foreach($child in Get-ChildItem -LiteralPath $path -Force){Assert-NoLinks $child.FullName}}}\r\n"+
+                "if(Test-Path -LiteralPath $root){Assert-NoLinks $root; Remove-Item -LiteralPath $root -Recurse -Force}\r\n"+
+                "if(Test-Path -LiteralPath $root){throw 'Cleanup incomplete'}\r\n"+
+                "$scheduler=New-Object -ComObject Schedule.Service; $scheduler.Connect(); $scheduler.GetFolder('\\').DeleteTask('"+CleanupName+"',0)\r\n";
+        }
+        internal static string CleanupXml()
+        {
+            string shell=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System),@"WindowsPowerShell\v1.0\powershell.exe");
+            var doc=new XmlDocument();doc.LoadXml(PowerXml(shell));
+            var ns=new XmlNamespaceManager(doc.NameTable);ns.AddNamespace("t",doc.DocumentElement.NamespaceURI);
+            doc.SelectSingleNode("//t:Description",ns).InnerText="CMP90HX 卸载后，在下次启动清空程序数据并移除此任务。";
+            doc.SelectSingleNode("//t:Arguments",ns).InnerText="-NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand "+Convert.ToBase64String(Encoding.Unicode.GetBytes(CleanupScript()));
+            var restart=doc.CreateElement("RestartOnFailure",doc.DocumentElement.NamespaceURI);
+            var interval=doc.CreateElement("Interval",doc.DocumentElement.NamespaceURI);interval.InnerText="PT1M";restart.AppendChild(interval);
+            var attempts=doc.CreateElement("Count",doc.DocumentElement.NamespaceURI);attempts.InnerText="5";restart.AppendChild(attempts);
+            doc.SelectSingleNode("//t:Settings",ns).AppendChild(restart);
+            return doc.OuterXml;
+        }
+        internal static void UninstallAll(Action<string> log)
+        {
+            // Reject foreign tasks and invalid definitions before changing the installation.
+            Query();Query(PowerName);Query(CleanupName);
+            ValidateCleanupDefinition();
+            PowerTasks.Disable(log);
+            TaskManagement.Uninstall(log);
+            using(var gate=new PowerHardwareGate()) DriverService.Uninstall(log);
+            CertificateManager.Uninstall(log);
+            Scheduler<int>(root=> {
+                object previous=Find(root,CleanupName),registered=null;
+                try {
+                    if(previous!=null) RequireOwned((dynamic)previous);
+                    registered=root.RegisterTask(CleanupName,CleanupXml(),6,"SYSTEM",null,5,"D:P(A;;GA;;;SY)(A;;GA;;;BA)");
+                    log("UNINSTALL_CLEANUP_SCHEDULED: 下次重启后清空 ProgramData\\CMP90HX。");return 0;
+                } finally {Release(registered);Release(previous);}
+            });
+        }
+        internal static void ValidateCleanupDefinition()
+        {
+            object service=null,definition=null;
+            try {
+                service=Activator.CreateInstance(Type.GetTypeFromProgID("Schedule.Service",true));
+                ((dynamic)service).Connect();definition=((dynamic)service).NewTask(0);
+                ((dynamic)definition).XmlText=CleanupXml();
+            } finally {Release(definition);Release(service);}
+        }
         internal const string WakeQuery="<QueryList><Query Id=\"0\" Path=\"System\"><Select Path=\"System\">*[System[Provider[@Name='Microsoft-Windows-Kernel-Power'] and EventID=107]]</Select></Query></QueryList>";
         static string Escape(string value) { return SecurityElement.Escape(value); }
         internal static string Xml(string executable)

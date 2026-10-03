@@ -157,6 +157,15 @@ namespace CMP90HX.Control
                 Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==0 && doc.SelectNodes("//t:Delay",ns).Count==0 && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--power-monitor" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","power task stays resident as SYSTEM with no forced termination");
                 TaskManagement.ValidateDefinition(paths.Worker);
                 TaskManagement.ValidateDefinition(paths.Worker,true);
+                doc.LoadXml(TaskManagement.CleanupXml());
+                string cleanupArguments=doc.SelectSingleNode("//t:Arguments",ns).InnerText;
+                string cleanupScript=Encoding.Unicode.GetString(Convert.FromBase64String(cleanupArguments.Substring(cleanupArguments.LastIndexOf(' ')+1)));
+                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==0 &&
+                    doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Command",ns).InnerText.EndsWith("powershell.exe",StringComparison.OrdinalIgnoreCase) &&
+                    cleanupScript==TaskManagement.CleanupScript() && cleanupScript.Contains("Assert-NoLinks $root") && cleanupScript.Contains("Remove-Item -LiteralPath $root") &&
+                    cleanupScript.Contains("Driver still installed") && cleanupScript.Contains("DeleteTask('"+TaskManagement.CleanupName+"'"),
+                    "uninstall cleanup runs independently at boot as SYSTEM with root/link/driver guards and self-removal");
+                TaskManagement.ValidateCleanupDefinition();
                 Require(true,"Windows Task Scheduler accepts the generated definition without registering a task");
                 Console.WriteLine("READ_ONLY_TASK "+TaskManagement.Query().Text);
                 CertificateManager.ValidateFiles(paths);

@@ -62,6 +62,7 @@ $hashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 
 @{version=$version;builtUtc=[DateTime]::UtcNow.ToString('o');coreVersion='469dc0c';gen2Sha256=$expectedWorker;dmaSha256=$expectedDriver;dmaSigner=$signature.SignerCertificate.Subject;workflow='native-csharp';uac='once-per-launch';unlockTiming='fast-default-with-conservative-option';verificationSamples=1;startupStatusReads=1;autoUnlock='SYSTEM boot + Kernel-Power 107; device-readiness without fixed delay';idlePower='opt-in SYSTEM resident NVAPI P8; coordinated unlock pause; GPU/video/application release';logs='ProgramData startup-cleanup; power log capped at 1 MiB'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'release.json') -Encoding UTF8
 $report=Join-Path $PSScriptRoot 'build\release-validation.log'
 $gui=Join-Path $OutputDirectory 'CMP90HXControl.exe'
+try {
 $check=Start-Process -FilePath $gui -ArgumentList @('--validate-package',('"'+$report+'"')) -WindowStyle Hidden -Wait -PassThru
 if($check.ExitCode -ne 0) { Get-Content -LiteralPath $report -Tail 15; throw "Distribution validation failed: $($check.ExitCode)" }
 $headlessReport=Join-Path $PSScriptRoot 'build\headless-validation.log'
@@ -74,3 +75,27 @@ $archiveHash+'  '+[IO.Path]::GetFileName($zip) | Set-Content -LiteralPath ($zip+
 Write-Host "RELEASE_PACKAGE_READY $zip"
 Write-Host "SHA256 $archiveHash"
 Write-Host "Validation log: $report"
+} finally {
+    # Package validation creates disposable records in the current user's temp directory.
+    # Run after the validation process exits, including failed validation/publication.
+    $tempRoot=[IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\')
+    $checkCache=Join-Path $tempRoot 'CMP90HX-package-check'
+    try {
+        if(Test-Path -LiteralPath $checkCache) {
+            $resolved=(Resolve-Path -LiteralPath $checkCache).ProviderPath
+            if(![string]::Equals($resolved,$checkCache,[StringComparison]::OrdinalIgnoreCase) -or
+                ![string]::Equals([IO.Path]::GetDirectoryName($resolved),$tempRoot,[StringComparison]::OrdinalIgnoreCase)) {
+                throw "Unsafe package-check cache path: $resolved"
+            }
+            $entry=Get-Item -LiteralPath $resolved -Force
+            if(!$entry.PSIsContainer -or ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -or
+                @(Get-ChildItem -LiteralPath $resolved -Recurse -Force -Attributes ReparsePoint).Count) {
+                throw "Package-check cache is not a regular directory or contains links: $resolved"
+            }
+            Remove-Item -LiteralPath $resolved -Recurse -Force
+            Write-Host "PACKAGE_CHECK_CACHE_CLEANED $resolved"
+        }
+    } catch {
+        Write-Warning "Could not clean package-check cache: $($_.Exception.Message)"
+    }
+}

@@ -198,7 +198,29 @@ namespace CMP90HX.Control
             ConservativeTiming.IsEnabled = enabled;
             ReadUnlockButton.IsEnabled = enabled;
             PrepareDriverButton.IsEnabled = enabled;
+            UninstallButton.IsEnabled = enabled;
             ActivityBar.Visibility = value ? Visibility.Visible : Visibility.Hidden;
+        }
+
+        async void UninstallButton_Click(object sender, RoutedEventArgs e)
+        {
+            if(busy || App.PreviewState!=null) return;
+            if(MessageBox.Show(this,"将停止省电并恢复自动性能，卸载驱动、两个签名根证书、自动解锁和省电计划任务。下次重启后清空 C:\\ProgramData\\CMP90HX 中的日志、配置和后台副本。完成后程序将退出。是否继续？",
+                "一键卸载",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes) return;
+            SetBusy(true);
+            OperationTitle.Text="正在卸载";
+            OperationDetail.Text="正在恢复性能并移除驱动、证书和计划任务。";
+            try {
+                await Task.Run(()=>TaskManagement.UninstallAll(line=>Dispatcher.BeginInvoke(new Action(()=>AppendLog(line+"\r\n")))));
+                MessageBox.Show(this,"驱动、证书和计划任务已卸载。请重启 Windows；重启后将自动清空程序数据目录。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
+                SetBusy(false);
+                Application.Current.Shutdown(0);
+            } catch(Exception error) {
+                OperationTitle.Text="卸载未完成";
+                OperationDetail.Text=error.Message;
+                AppendLog("UNINSTALL_FAILED: "+error+"\r\n");
+                SetBusy(false);
+            }
         }
 
         async Task RunWorkflow(string mode, string label)
