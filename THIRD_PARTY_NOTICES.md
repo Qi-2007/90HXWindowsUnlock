@@ -24,6 +24,9 @@ prepare-core.ps1 requires locally supplied inputs and validates exact hashes.
 
 ## Windows driver inputs
 
+Historical v1 inputs only: the current protocol-v2 worker uses original scoped
+PCI/MMIO code in CMP90HXDma and does not load or package these binaries.
+
 prepare-reference-drivers.ps1 obtains binaries from commit
 f802245f0f6d318670210f732092bb754396c5c3 of ngthaihoc/CMP30HXmodtoGEN2.
 Use -SourceDirectory to supply an existing local copy instead of downloading.

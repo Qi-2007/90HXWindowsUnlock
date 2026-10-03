@@ -6,7 +6,7 @@ https://github.com/Qi-2007/90HXWindowsUnlock
 当前源码位于上述独立仓库的 `master` 分支。
 
 从 `Qi-2007/CMP90HX-WindowsUnlock` 的 Windows 平台代码及本次新增 DMA 驱动拆分。
-仅使用专用 Windows DMA 驱动提供内存，不包含 EFI DMA 引导组件、不读取 EFI 预留变量。
+专用 Windows 驱动统一提供 DMA 内存、PCI 配置访问和寄存器访问，不包含 EFI DMA 引导组件、不读取 EFI 预留变量。
 冷启动直接进入 Windows。`prepare-core.ps1` 可以从用户本地 EFI 文件静态提取核心；
 提取不执行 EFI，也不要求通过 EFI 启动。
 
@@ -15,9 +15,24 @@ https://github.com/Qi-2007/90HXWindowsUnlock
 保守时序解锁以及 NVIDIA 接管后的 3 次 Code 0 / Gen2 x16 / override 验证。
 该机器启动时仍执行仅预留内存的 EFI；本后端不读取其预留变量，但尚不能据此宣称
 已验证完全不运行 EFI 的启动环境，也未完成长时间负载稳定性测试。
-驱动提供物理地址，尚未支持 IOMMU DMA 重映射；完整解锁还依赖固定版本的原生核心、
-WinRing0 和 ThrottleStop 参考驱动。只下载本仓库即可编译新 DMA 驱动；
+驱动提供物理地址，尚未支持 IOMMU DMA 重映射；完整解锁还依赖固定版本的原生核心。
+当前源码使用 CMP90HXDma 协议 v2，已移除 WinRing0 和 ThrottleStop 运行依赖。只下载本仓库即可编译新 DMA 驱动；
 构建 C# 模拟测试不要求核心文件，实际解锁需要自行准备全部依赖。
+
+**v2 整合尚未实机验证。** 上述历史硬件结果属于旧后端。新构建必须重新签名；
+旧驱动不支持新接口，若已加载 v1，须重启后安装/启动 v2。签名后运行
+`update-release-hashes.ps1` 自动更新工作进程及驱动哈希并重建 GUI；发布脚本也会自动
+执行这一步。旧发布包保持原样。
+
+v2 保留管理员/SYSTEM ACL、单进程独占及 DMA 崩溃隔离。PCI 读取用于 segment-0 枚举；
+写入仅允许选定 90HX 的 D0/Command、原 BAR 恢复和链路控制，以及直连上游桥的
+SBR/ASPM/目标速率控制。MMIO 限于已验证 GA102 的 16 MiB BAR0、ACPI MCFG 推导
+并与 HAL 对照的桥配置窗口，以及自身 DMA 内存的只读回查。`--drivers` 参数兼容保留，
+不再加载参考驱动；NVIDIA 显示驱动、NVAPI/NVML 及原生核心仍是独立依赖。
+
+在 Visual Studio x64 开发者 PowerShell 中运行 `tools/test-unified-driver.ps1`，
+可验证实际内核 IOCTL 处理函数的模拟 PCI/MMIO/MCFG、包长度、越界拒绝、原 BAR 恢复、
+桥控制字写入及 DMA 回查；不加载驱动或访问真实硬件。`build.ps1` 另运行用户态和核心模拟测试。
 
 ## 文件
 
@@ -27,9 +42,10 @@ WinRing0 和 ThrottleStop 参考驱动。只下载本仓库即可编译新 DMA �
 - `build-gui.ps1` / `run-gui-workflow.ps1`：界面构建与按需提权工作流。
 - `build-dma-driver.ps1`：编译 `CMP90HXDma.sys`。
 - `build.ps1`：编译 C# 程序并运行模拟自测。
+- `update-release-hashes.ps1`：校验签名、构建自测、更新两个运行文件哈希并重建 GUI。
 - `install-dma-driver.ps1`：检查签名并创建、启动按需驱动服务。
 - `run-full-test.ps1`：Preflight / GpuDmaInitTest / Unlock / Verify。
-- `prepare-core.ps1` / `prepare-reference-drivers.ps1`：准备固定哈希的本地依赖。
+- `prepare-core.ps1`：准备固定哈希的原生核心；`prepare-reference-drivers.ps1` 仅供旧版本研究使用。
 
 ## Windows 编译
 
@@ -86,8 +102,27 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 .\build-release.ps1
 ```
 
-使用本地 `build/dma-driver/CMP90HXDmaSigned.sys` 及 `build/dma-driver/cert/` 两个证书作为固定输入，生成 `dist/CMP90HX-Control-1.2.2-<时间>/` 和 ZIP、SHA256。
-包内包含 GUI、预编译工作进程、固定核心及参考驱动；解压后不依赖源码目录或开发工具。
+哈希配置在 `ui/NativeWorkflow.cs` 的 `RuntimePaths.Gen2Hash` 与 `DmaHash`。
+签名后可单独运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\update-release-hashes.ps1`，
+脚本确认工作进程构建自测通过、驱动签名有效后，更新两项哈希，复制驱动到 GUI 使用的
+`build\dma-driver\CMP90HXDmaSigned.sys` 并重建 GUI。默认读取已就地签名的
+`build\dma-driver\CMP90HXDma.sys`；该文件不存在时使用 `CMP90HXDmaSigned.sys`。
+自定义签名文件可传 `-SignedDriverPath '完整路径\驱动.sys'`。
+`build-release.ps1` 自动调用同一脚本，并验证发布包内两个文件与配置哈希一致；
+无效签名会在更新配置前报错。脚本不重新编译驱动、加载驱动或修改系统签名策略。
+
+如果在打包完成后给发布目录里的 `CMP90HXControl.exe` 签名，需再运行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDirectory '.\dist\CMP90HX-Control-1.2.2-<时间>'
+```
+
+脚本验证签名及原 ZIP 中的程序内容，仅更新 GUI 签名带来的哈希变化，运行发布包校验，
+再生成新的 `-signed-<时间>.zip` 和 SHA256 文件。保留原 ZIP 供对照。
+工作进程或驱动发生变化时应重新运行 `build-release.ps1`。
+
+使用本地已签名的 DMA 驱动及 `build/dma-driver/cert/` 两个证书作为输入，生成 `dist/CMP90HX-Control-1.2.2-<时间>/` 和 ZIP、SHA256。
+包内包含 GUI、预编译工作进程、固定核心及统一驱动；解压后不依赖源码目录或开发工具。
 构建脚本运行原有核心自测和原生编排测试，并从发布目录执行不加载驱动的完整文件检查。
 开发构建仍需要 Visual Studio MSBuild；运行包需要 .NET Framework 4.8.1。
 
@@ -97,7 +132,7 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 | 驱动管理 | 独立窗口查看和安装/卸载两个固定指纹根证书及 DMA 驱动；已加载驱动卸载后重启生效。 |
 | 计划任务管理 | 独立窗口安装/卸载/手动触发 SYSTEM 开机及 Kernel-Power 107 唤醒任务；安装前自动补齐证书和驱动并通过环境检查。 |
 | 空闲省电 | 独立窗口设置空闲 P8、GPU 阈值、等待时间及全速应用例外；SYSTEM 后台常驻，解锁前暂停，设备恢复后重新检测。 |
-| 刷新解锁状态 | 一次只读快照，同时显示并判断两端 PCIe Gen/宽度、计算和图形解锁寄存器。启动后自动执行一次，不启动 DMA 驱动。 |
+| 刷新解锁状态 | 确保统一驱动运行，一次只读快照，同时判断两端 PCIe Gen/宽度、计算和图形解锁寄存器；不申请 DMA 内存或改变显卡启停状态。 |
 | 开始解锁 | 默认快速时序，保留保守兼容开关；原本启用的设备暂时停用，恢复后以一次快照验证。 |
 
 
@@ -146,13 +181,7 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 
 ## 先验证 DMA，再测试解锁
 
-准备参考驱动：
-
-```powershell
-.\prepare-reference-drivers.ps1
-```
-
-也可用 `-SourceDirectory` 指定本地参考驱动目录。首先在管理员终端测试 CPU 映射：
+安装/启动重新签名的 CMP90HXDma v2 后，首先在管理员终端测试 CPU 映射：
 
 ```powershell
 .\build\CMP90HXGen2.exe arena-info --physical-dma-experiment

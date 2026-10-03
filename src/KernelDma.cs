@@ -10,6 +10,8 @@ namespace CMP90HX
     sealed class KernelDma : IDisposable
     {
         const uint InfoCode=0x8337e000, MapCode=0x8337e004, ArmCode=0x8337e008, CompleteCode=0x8337e00c;
+        internal const uint BindCode=0x8337e010, PciReadCode=0x8337e014, PciWriteCode=0x8337e018,
+            MmioReadCode=0x8337e01c, MmioWriteCode=0x8337e020;
         SafeFileHandle handle;
         internal ArenaDescriptor Descriptor;
         internal IntPtr Mapping;
@@ -21,16 +23,12 @@ namespace CMP90HX
                 if(handle.IsInvalid) throw Native.Failure(Marshal.GetLastWin32Error(),"Open CMP90HXDma (install/start the signed experimental driver first)");
                 byte[] info=Call(InfoCode,40);
                 ValidateInfo(info,false);
-                if(map) {
-                    info=Call(MapCode,40); ValidateInfo(info,true);
-                    Descriptor=new ArenaDescriptor {Physical=BitConverter.ToUInt64(info,8),Length=BitConverter.ToUInt64(info,16),Cookie=BitConverter.ToUInt64(info,32)};
-                    Mapping=new IntPtr(checked((long)BitConverter.ToUInt64(info,24)));
-                }
+                if(map) MapArena();
             } catch { Dispose(); throw; }
         }
         internal static void ValidateInfo(byte[] info,bool mapped)
         {
-            if(info.Length!=40 || BitConverter.ToUInt32(info,0)!=1) throw new IOException("Unsupported kernel DMA protocol.");
+            if(info.Length!=40 || BitConverter.ToUInt32(info,0)!=2) throw new IOException("CMP90HXDma protocol v2 required; sign/install the rebuilt driver and reboot if v1 is already loaded.");
             uint state=BitConverter.ToUInt32(info,4);
             if(state==1 || state==2) throw new RetainedDmaException("DMA_RETAINED: kernel arena is armed/quarantined. Keep GPU disabled and cold boot; no EFI bootstrap is needed for the kernel backend.");
             if(state!=0) throw new IOException("Invalid kernel DMA state.");
@@ -47,6 +45,25 @@ namespace CMP90HX
                 throw Native.Failure(Marshal.GetLastWin32Error(),"Kernel DMA IOCTL 0x"+code.ToString("x8"));
             if(returned!=size) throw new IOException("Short kernel DMA response.");
             return output;
+        }
+        internal void MapArena()
+        {
+            if(Mapping!=IntPtr.Zero) return;
+            byte[] info=Call(MapCode,40); ValidateInfo(info,true);
+            Descriptor=new ArenaDescriptor {Physical=BitConverter.ToUInt64(info,8),Length=BitConverter.ToUInt64(info,16),Cookie=BitConverter.ToUInt64(info,32)};
+            Mapping=new IntPtr(checked((long)BitConverter.ToUInt64(info,24)));
+        }
+        internal void RegisterCall(uint code,RegisterIoPacket packet)
+        {
+            uint returned;
+            if(!Native.DeviceIoControl(handle,code,packet.Input,packet.InputLength,packet.Output,packet.OutputLength,out returned,IntPtr.Zero))
+                throw Native.Failure(Marshal.GetLastWin32Error(),"CMP90HXDma IOCTL 0x"+code.ToString("x8"));
+            if(returned!=packet.OutputLength) throw new IOException("Short CMP90HXDma register response.");
+        }
+        internal void Bind(uint gpu,uint bridge)
+        {
+            RegisterIoPacket packet=RegisterIoPacket.Current;
+            packet.Target(gpu,bridge); RegisterCall(BindCode,packet);
         }
         internal void Acquire() { Call(ArmCode,0); Pending=true; }
         internal void Release() { Call(CompleteCode,0); Pending=false; }

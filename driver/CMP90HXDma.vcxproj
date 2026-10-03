@@ -38,7 +38,7 @@
       </ExceptionHandling>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Wdmsec.lib;Aux_Klib.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -47,6 +47,8 @@
   <ItemGroup>
     <ClInclude Include="include\protocol.h" />
     <ClInclude Include="include\arena_state.h" />
+    <ClInclude Include="include\hardware_scope.h" />
+    <ClInclude Include="src\hardware.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Directory.Build.props" />

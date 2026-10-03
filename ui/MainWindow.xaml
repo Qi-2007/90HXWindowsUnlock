@@ -264,7 +264,7 @@
                         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <DockPanel Margin="0,0,0,12">
-                                <Button x:Name="ReadUnlockButton" Content="刷新解锁状态" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Padding="12,0" Style="{StaticResource ActionButton}" Click="ReadUnlockButton_Click" ToolTip="采集一次快照并判断解锁状态；不启动 DMA 驱动、不改变显卡启停状态。" />
+                                <Button x:Name="ReadUnlockButton" Content="刷新解锁状态" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Padding="12,0" Style="{StaticResource ActionButton}" Click="ReadUnlockButton_Click" ToolTip="确保统一驱动运行，采集一次快照；不申请 DMA 内存、不改变显卡启停状态。" />
                                 <TextBlock Text="显卡解锁状态" Style="{StaticResource SectionTitle}" />
                             </DockPanel>
                             <UniformGrid Columns="3" Margin="0,0,0,10">

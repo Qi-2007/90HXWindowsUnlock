@@ -220,19 +220,19 @@ namespace CMP90HX
             bool widths=true;
             foreach(int width in new int[]{1,2,4}) {
                 packet.Pci(0x1234,0x40,width,true,0xfedcba98);
-                widths &= packet.InputLength==8+width && packet.OutputLength==0 &&
+                widths &= packet.InputLength==16 && packet.OutputLength==0 &&
                     BitConverter.ToUInt32(packet.Input,0)==0x1234 && BitConverter.ToUInt32(packet.Input,4)==0x40 &&
-                    BitConverter.ToUInt32(packet.Input,8)==0xfedcba98;
+                    BitConverter.ToUInt32(packet.Input,8)==width && BitConverter.ToUInt32(packet.Input,12)==0xfedcba98;
                 for(int i=0;i<4;i++) packet.Output[i]=0xff;
                 packet.Pci(0x1234,0x40,width,false,0);
-                widths &= packet.InputLength==8 && packet.OutputLength==width &&
+                widths &= packet.InputLength==16 && packet.OutputLength==4 &&
                     packet.Value==(width==4?0xffffffffU:((1U<<(width*8))-1));
             }
             packet.Physical(0x123456789abcUL,true,0x98765432);
-            bool physical=packet.InputLength==12 && packet.OutputLength==0 &&
+            bool physical=packet.InputLength==16 && packet.OutputLength==0 &&
                 BitConverter.ToUInt64(packet.Input,0)==0x123456789abcUL && BitConverter.ToUInt32(packet.Input,8)==0x98765432;
             packet.Physical(0x123456789abcUL,false,0);
-            Check(widths && physical && packet.InputLength==8 && packet.OutputLength==4,
+            Check(widths && physical && packet.InputLength==16 && packet.OutputLength==4,
                 "reused IOCTL packets preserve exact PCI widths, physical addresses and transfer lengths",output);
             RegisterIoPacket other=null;
             System.Threading.Thread thread=new System.Threading.Thread(delegate() { other=RegisterIoPacket.Current; });
@@ -556,13 +556,17 @@ namespace CMP90HX
             bool invalidDelay=false; try { WindowsHardware.PreciseShortDelay(-1); } catch(ArgumentOutOfRangeException) { invalidDelay=true; }
             Check(invalidDelay,"precise delay rejects invalid duration",output);
             byte[] kernelInfo=new byte[40];
-            Buffer.BlockCopy(BitConverter.GetBytes(1U),0,kernelInfo,0,4);
+            Buffer.BlockCopy(BitConverter.GetBytes(2U),0,kernelInfo,0,4);
             Buffer.BlockCopy(BitConverter.GetBytes(0x20000000UL),0,kernelInfo,8,8);
             Buffer.BlockCopy(BitConverter.GetBytes(32UL*1024*1024),0,kernelInfo,16,8);
             Buffer.BlockCopy(BitConverter.GetBytes(0x100000000UL),0,kernelInfo,24,8);
             Buffer.BlockCopy(BitConverter.GetBytes(1UL),0,kernelInfo,32,8);
             KernelDma.ValidateInfo(kernelInfo,true);
             Check(true,"kernel DMA protocol accepts bounded low physical address and mapped user range",output);
+            Buffer.BlockCopy(BitConverter.GetBytes(1U),0,kernelInfo,0,4);
+            bool oldProtocol=false; try { KernelDma.ValidateInfo(kernelInfo,false); } catch(IOException) { oldProtocol=true; }
+            Check(oldProtocol,"unified hardware transport refuses the old arena-only driver",output);
+            Buffer.BlockCopy(BitConverter.GetBytes(2U),0,kernelInfo,0,4);
             for(uint state=1;state<=2;state++) {
                 Buffer.BlockCopy(BitConverter.GetBytes(state),0,kernelInfo,4,4);
                 bool blocked=false; try { KernelDma.ValidateInfo(kernelInfo,false); } catch(RetainedDmaException) { blocked=true; }
@@ -583,12 +587,6 @@ namespace CMP90HX
                 GC.Collect(); GC.WaitForPendingFinalizers();
                 Check(forward(1,2,3,4,5,6) == 135, "native callback remains rooted across GC", output);
             }
-            Check(WindowsHardware.LoadedDevicePath(@"\\.\ThrottleStop", "CMP90HX_ThrottleStop_816", true) ==
-                @"\\.\CMP90HX_ThrottleStop_816", "ThrottleStop device follows the temporary service name", output);
-            Check(WindowsHardware.LoadedDevicePath(@"\\.\WinRing0_1_2_0", "CMP90HX_WinRing0_816", false) ==
-                @"\\.\WinRing0_1_2_0", "WinRing0 device keeps its fixed name", output);
-            Check(Native.DriverImagePath(@"E:\code\90 HX\WinRing0x64.sys") == @"\??\E:\code\90 HX\WinRing0x64.sys",
-                "kernel service path uses NT prefix with no command-line quotes", output);
             System.ComponentModel.Win32Exception invalidPath = Native.Failure(123, "StartService test");
             Check(invalidPath.NativeErrorCode == 123 && invalidPath.Message.Contains("Win32=123") &&
                 invalidPath.Message.Contains("0x0000007b"), "Win32 errors include native code and system message", output);

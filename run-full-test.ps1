@@ -24,9 +24,6 @@ if ($ValidateOnly) {
     & (Join-Path $root 'build.ps1')
     if ($Mode -ne 'Status' -and !(Test-Path -LiteralPath $core)) { throw 'Pinned core object is missing.' }
     if ($Mode -ne 'Status' -and (Get-FileHash -Algorithm SHA256 $core).Hash -ne $coreHash) { throw 'Core hash mismatch.' }
-    foreach ($file in @('WinRing0x64.sys','ThrottleStop.sys')) {
-        if (!(Test-Path -LiteralPath (Join-Path $drivers $file))) { throw "Missing driver: $file" }
-    }
     Write-Host 'Full-test inputs validated. No firmware-variable read, driver load, PnP change or GPU access performed.'
     exit 0
 }

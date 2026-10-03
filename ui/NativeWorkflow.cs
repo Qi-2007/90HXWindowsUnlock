@@ -13,7 +13,9 @@ namespace CMP90HX.Control
     internal sealed class RuntimePaths
     {
         internal const string Version="1.2.2";
-        internal const string DmaHash="8A0E82640D1E16F7C949E17AB2A7A80F25C125EA0C317440E195DE7368608B40";
+        // Updated by update-release-hashes.ps1 before the GUI is compiled.
+        internal const string Gen2Hash="EB488D45658AA548971C2D165673E9A2E79778D283AD127C49AAE7C274D0DC83";
+        internal const string DmaHash="09887C79ECA9192A8C4355146932D8824AF9BA8DBE20B4B4E595DDF057EDD01E";
         internal const string CoreHash="B533B7B245ED606C151CA336B9A6BACEBE935E3EC478246E879C668A4DD98A6A";
         internal readonly string Root, Worker, Drivers, DmaDriver, Core, Logs, Certificates;
         internal readonly bool Packaged;
@@ -42,6 +44,8 @@ namespace CMP90HX.Control
         internal void Validate(bool requireCore,bool requireDma)
         {
             if(!File.Exists(Worker)) throw new FileNotFoundException("缺少硬件工作进程："+Worker);
+            if(Gen2Hash.Length!=64) throw new IOException("运行文件哈希尚未更新，请运行 update-release-hashes.ps1 后重新构建 GUI。");
+            RequireHash(Worker,Gen2Hash);
             if(Packaged) {
                 var entries=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(Root,"files.sha256.json")));
                 foreach(string relative in new[]{"runtime/CMP90HXGen2.exe","runtime/CMP90HXGen2.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
@@ -52,10 +56,11 @@ namespace CMP90HX.Control
                 string stamp=Path.Combine(Root,"build","CMP90HXGen2.validated.sha256");
                 RequireHash(Worker,File.ReadAllText(stamp).Trim());
             }
-            RequireHash(Path.Combine(Drivers,"WinRing0x64.sys"),"11BD2C9F9E2397C9A16E0990E4ED2CF0679498FE0FD418A3DFDAC60B5C160EE5");
-            RequireHash(Path.Combine(Drivers,"ThrottleStop.sys"),"16F83F056177C4EC24C7E99D01CA9D9D6713BD0497EEEDB777A3FFEFA99C97F0");
             if(requireCore) RequireHash(Core,CoreHash);
-            if(requireDma) { CertificateManager.ValidateFiles(this); RequireHash(DmaDriver,DmaHash); SignatureTrust.Verify(DmaDriver); }
+            if(requireDma) {
+                if(DmaHash.Length!=64) throw new IOException("驱动哈希尚未更新，请签名后运行 update-release-hashes.ps1。");
+                CertificateManager.ValidateFiles(this); RequireHash(DmaDriver,DmaHash); SignatureTrust.Verify(DmaDriver);
+            }
         }
     }
 
@@ -183,7 +188,7 @@ namespace CMP90HX.Control
                     bool automatic=mode=="AutoUnlock",environment=mode=="Environment";
                     if(mode=="Unlock" || automatic) log("GUI_UNLOCK_CORE=469dc0c timing="+(conservative?"conservative":"fast"));
                     if(environment || automatic) platform.CheckEnvironmentDependencies();
-                    validate(mode=="Check" || mode=="Unlock" || environment || automatic,mode=="Check" || mode=="Install" || mode=="Preflight" || mode=="Unlock" || environment || automatic);
+                    validate(mode=="Check" || mode=="Unlock" || environment || automatic,true);
                     if(mode=="Check") {
                         Require(platform.Run("self-test"),"Managed self-tests");
                         Require(platform.Run("core-test","--core",paths.Core),"Pinned core mock tests");
@@ -198,6 +203,7 @@ namespace CMP90HX.Control
                     GpuDevice target=automatic?WaitTarget():platform.Target(); log("Target: "+target.InstanceId+" / BDF="+target.Bdf);
                     if(platform is WindowsWorkflowPlatform) powerPause=PowerCoordination.Pause();
                     if(mode=="Status") {
+                        platform.EnsureDriver();
                         var state=Snapshot(target,"unlock-status.json");
                         bool verified=false;
                         if(platform.Problem(target.InstanceId)==0) {
@@ -207,6 +213,7 @@ namespace CMP90HX.Control
                         log("UNLOCK_STATUS_CAPTURED"); return 0;
                     }
                     if(mode=="Verify") {
+                        platform.EnsureDriver();
                         Verify(target,1,1); return 0;
                     }
                     platform.EnsureDriver(); Require(Arena(),"DMA backend validation");

@@ -105,11 +105,11 @@ namespace CMP90HX.Control
                 var lost=new FakePlatform{BadVerify=true};code=Run(paths,lost,"Unlock",out log);
                 Require(code!=0 && !log.Any(s=>s.StartsWith("FULL_UNLOCK_VERIFIED_AFTER")),"lost overrides after NVIDIA reattach fail verification");
                 var status=new FakePlatform();code=Run(paths,status,"Status",out log);
-                Require(code==0 && status.DriverCalls==0 && status.Disables==0 && status.Enables==0 && status.Commands.SequenceEqual(new[]{"snapshot"}) && log.Contains("UNLOCK_STATUS_VERIFIED"),"combined status reads and verifies once without DMA start or PnP change");
+                Require(code==0 && status.DriverCalls==1 && status.Disables==0 && status.Enables==0 && status.Commands.SequenceEqual(new[]{"snapshot"}) && log.Contains("UNLOCK_STATUS_VERIFIED"),"combined status ensures unified driver and reads once without PnP change");
                 var partiallyLocked=new FakePlatform{BadStatus=true};code=Run(paths,partiallyLocked,"Status",out log);
                 Require(code==0 && partiallyLocked.SnapshotCalls==1 && log.Contains("UNLOCK_STATUS_NOT_FULLY_VERIFIED") && !log.Contains("UNLOCK_STATUS_VERIFIED"),"status displays a locked value without claiming verification passed");
                 var manual=new FakePlatform();code=Run(paths,manual,"Verify",out log);
-                Require(code==0 && manual.SnapshotCalls==1 && manual.DriverCalls==0,"verification uses a single snapshot without redundant baseline read");
+                Require(code==0 && manual.SnapshotCalls==1 && manual.DriverCalls==1,"verification uses a single snapshot without redundant baseline read");
                 var check=new FakePlatform();code=Run(paths,check,"Check",out log);
                 Require(code==0 && check.DriverCalls==0 && check.TargetCalls==0 && check.Commands.SequenceEqual(new[]{"self-test","core-test"}),"package check performs mock tests only");
                 var environment=new FakePlatform();code=Run(paths,environment,"Environment",out log);

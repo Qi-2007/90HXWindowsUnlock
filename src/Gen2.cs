@@ -93,8 +93,8 @@ namespace CMP90HX
             try { id = io.ReadPci(bdf, 0, 4); return (id & 0xffff) != 0xffff && (id & 0xffff) != 0; }
             catch (Win32Exception e)
             {
-                // WinRing0 returns private NTSTATUS values for absent buses and
-                // devices; DeviceIoControl commonly maps both to ERROR_GEN_FAILURE.
+                // Preserve access/handle errors while tolerating PCI scan misses.
+                // The unified driver normally returns all ones for absent IDs.
                 // Preserve real access/handle failures and treat other scan misses
                 // as absent. A completely broken transport still yields zero GPUs.
                 if (e.NativeErrorCode == 5 || e.NativeErrorCode == 6) throw;
@@ -159,6 +159,8 @@ namespace CMP90HX
 
         Snapshot CaptureDevice(uint gpu,uint bridge)
         {
+            WindowsHardware windows=io as WindowsHardware;
+            if(windows!=null) windows.Bind(gpu,bridge);
             uint low = io.ReadPci(gpu, 0x10, 4);
             if (low == 0 || low == 0xffffffff || (low & 1) != 0) throw new Exception("Invalid BAR0.");
             uint type = low & 6;

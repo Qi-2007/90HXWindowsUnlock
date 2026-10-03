@@ -4,7 +4,7 @@
 #include "../include/arena_state.h"
 
 /* This experimental legacy driver supplies PHYSICAL addresses, not IOVAs.
- * It never accepts an arbitrary physical address, size, or user pointer.
+ * Register access is scoped to a validated GA102 BAR0/upstream bridge.
  * No unload routine: backing pages and quarantine survive until reboot. */
 static FAST_MUTEX Lock;
 static PFILE_OBJECT Owner;
@@ -15,6 +15,7 @@ static PHYSICAL_ADDRESS Physical;
 static unsigned State;
 static ULONGLONG Cookie;
 static const GUID DeviceClass = {0x21be72b4,0x4f41,0x4daf,{0xa2,0xcb,0x25,0xa0,0x8a,0x2e,0xb7,0xd1}};
+#include "hardware.h"
 DRIVER_INITIALIZE DriverEntry;
 DRIVER_DISPATCH Dispatch;
 
@@ -76,6 +77,7 @@ NTSTATUS Dispatch(PDEVICE_OBJECT device, PIRP irp)
     case IRP_MJ_CLEANUP:
         if (Owner == stack->FileObject) {
             KAPC_STATE attach;
+            HardwareCleanup();
             State = arena_disconnect(State);
             if (UserAddress) {
                 KeStackAttachProcess(Process, &attach);
@@ -93,6 +95,13 @@ NTSTATUS Dispatch(PDEVICE_OBJECT device, PIRP irp)
     case IRP_MJ_DEVICE_CONTROL:
         if (Owner != stack->FileObject || PsGetCurrentProcess() != Process ||
             irp->RequestorMode != UserMode) { status = STATUS_ACCESS_DENIED; break; }
+        if (stack->Parameters.DeviceIoControl.IoControlCode >= CMP_BIND &&
+            stack->Parameters.DeviceIoControl.IoControlCode <= CMP_MMIO_WRITE) {
+            status = HardwareIoctl(stack->Parameters.DeviceIoControl.IoControlCode,
+                irp->AssociatedIrp.SystemBuffer, stack->Parameters.DeviceIoControl.InputBufferLength,
+                stack->Parameters.DeviceIoControl.OutputBufferLength, &bytes);
+            break;
+        }
         if (stack->Parameters.DeviceIoControl.InputBufferLength != 0) {
             status = STATUS_INVALID_PARAMETER; break;
         }
@@ -110,7 +119,7 @@ NTSTATUS Dispatch(PDEVICE_OBJECT device, PIRP irp)
             {
                 CMP_ARENA_INFO *info = (CMP_ARENA_INFO *)irp->AssociatedIrp.SystemBuffer;
                 RtlZeroMemory(info, sizeof(*info));
-                info->Version = 1; info->State = State;
+                info->Version = CMP_PROTOCOL_VERSION; info->State = State;
                 info->Physical = (ULONGLONG)Physical.QuadPart;
                 info->Length = Buffer ? CMP_ARENA_BYTES : 0;
                 info->UserAddress = (ULONGLONG)(ULONG_PTR)UserAddress;
@@ -144,6 +153,7 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
     NTSTATUS status;
     ULONG i;
     UNREFERENCED_PARAMETER(registry);
+    HardwareInitialize(); /* Firmware APIs require PASSIVE_LEVEL, before the mutex. */
     ExInitializeFastMutex(&Lock);
     status = IoCreateDeviceSecure(driver, 0, &name, CMP_DEVICE_TYPE,
         FILE_DEVICE_SECURE_OPEN, TRUE, &acl, &DeviceClass, &device);

@@ -242,9 +242,7 @@ namespace CMP90HX.Control
             var inputs=new Dictionary<string,string> {
                 {"CMP90HXControl.exe",sourceGui},{"CMP90HXControl.exe.config",sourceGui+".config"},
                 {"runtime/CMP90HXGen2.exe",paths.Worker},{"runtime/CMP90HXGen2.exe.config",paths.Worker+".config"},{"core/nvpermissive-core.o",paths.Core},
-                {"driver/CMP90HXDmaSigned.sys",paths.DmaDriver},
-                {"drivers/WinRing0x64.sys",Path.Combine(paths.Drivers,"WinRing0x64.sys")},
-                {"drivers/ThrottleStop.sys",Path.Combine(paths.Drivers,"ThrottleStop.sys")}
+                {"driver/CMP90HXDmaSigned.sys",paths.DmaDriver}
             };
             foreach(string name in CertificateManager.Names) inputs.Add("driver/cert/"+name,Path.Combine(paths.Certificates,name));
             var hashes=new Dictionary<string,string>();

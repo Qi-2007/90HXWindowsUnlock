@@ -54,7 +54,7 @@ namespace CMP90HX
                             byte[] bytes = command == "full-unlock" || command == "gpu-dma-init-test" ? ElfCore.PinnedBytes(options["core"]) : null;
                             string directory = options.ContainsKey("drivers") ? Path.GetFullPath(options["drivers"]) : null;
                             using (WindowsHardware hardware = new WindowsHardware(directory))
-                            using (KernelDma driver = new KernelDma(true))
+                            using (KernelDma driver = hardware.MapArena())
                             using (DmaArena arena = new DmaArena(hardware, driver))
                             {
                                 Log(String.Format("DMA_BACKEND={0} physical=0x{1:x} bytes={2}","kernel-physical-experiment",arena.Descriptor.Physical,arena.Descriptor.Length));
@@ -355,7 +355,8 @@ namespace CMP90HX
             Console.WriteLine("  CMP90HXGen2.exe self-test");
             Console.WriteLine("  DMA commands require --physical-dma-experiment and preinstalled CMP90HXDma driver (kernel backend only).");
             Console.WriteLine("  CMP90HXGen2.exe arena-info [--log FILE]");
-            Console.WriteLine("  CMP90HXGen2.exe arena-reserve-test [--log FILE] (no GPU or reference drivers required)");
+            Console.WriteLine("  CMP90HXDma protocol v2 must be installed/started for hardware commands; --drivers is a compatibility option only.");
+            Console.WriteLine("  CMP90HXGen2.exe arena-reserve-test [--log FILE] (no GPU access)");
             Console.WriteLine("  CMP90HXGen2.exe dma-test --drivers DIR [--log FILE]");
             Console.WriteLine("  CMP90HXGen2.exe gpu-dma-test --drivers DIR --bdf 02:00.0 [--log FILE] (already disabled Code 22 required)");
             Console.WriteLine("  CMP90HXGen2.exe gpu-dma-init-test --core PINNED_OBJECT --drivers DIR --bdf 02:00.0 [--log FILE] (explicit GSP engine reset; Code 22 required)");

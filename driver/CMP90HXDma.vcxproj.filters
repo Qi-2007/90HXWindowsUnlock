@@ -10,6 +10,8 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="include\hardware_scope.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\hardware.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="include\protocol.h">
       <Filter>Header Files</Filter>
     </ClInclude>
