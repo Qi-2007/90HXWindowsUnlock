@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{7255CD13-9576-45D3-A558-D45CA4746D46}</ProjectGuid>
+    <RootNamespace>CMP90HXDma</RootNamespace>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>Driver</ConfigurationType>
+    <DriverType>WDM</DriverType>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <TargetVersion>Windows10</TargetVersion>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <DriverTargetPlatform>Desktop</DriverTargetPlatform>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <PropertyGroup>
+    <OutDir>$(MSBuildThisFileDirectory)..\build\dma-driver\</OutDir>
+    <IntDir>$(MSBuildThisFileDirectory)..\build\dma-driver-obj\</IntDir>
+    <TargetName>CMP90HXDma</TargetName>
+    <EnableInf2cat>false</EnableInf2cat>
+    <SignMode>Off</SignMode>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>true</TreatWarningAsError>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
+      <ExceptionHandling>
+      </ExceptionHandling>
+    </ClCompile>
+    <Link>
+      <AdditionalDependencies>Wdmsec.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="src\driver.c" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\protocol.h" />
+    <ClInclude Include="include\arena_state.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Directory.Build.props" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="ValidateKernelToolset" BeforeTargets="PrepareForBuild">
+    <Error Condition="'$(PlatformToolset)' != 'WindowsKernelModeDriver10.0'" Text="Select WindowsKernelModeDriver10.0, not a desktop C++ toolset." />
+    <Error Condition="'$(DDK_LIB_PATH)' == ''" Text="WDK integration is not active in this Visual Studio installation. Install matching SDK/WDK and its VS extension; use VS 2022 with build-dma-driver.ps1." />
+    <Error Condition="!Exists('$(DDK_LIB_PATH)\ntoskrnl.lib')" Text="Selected WDK kernel libraries are missing. Install matching SDK/WDK and select their version." />
+  </Target>
+</Project>

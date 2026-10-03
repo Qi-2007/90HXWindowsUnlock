@@ -1,0 +1,303 @@
+<Window x:Class="CMP90HX.Control.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="90HX Windows Unlock 控制台" Width="1120" Height="800" MinWidth="900" MinHeight="680"
+        WindowStartupLocation="CenterScreen" Background="#F4F6F9"
+        FontFamily="Segoe UI Variable, Microsoft YaHei UI, Segoe UI"
+        FontSize="14" Foreground="#1C2430" UseLayoutRounding="True"
+        Loaded="Window_Loaded" Closing="Window_Closing">
+    <Window.Resources>
+    <DataTemplate x:Key="WatermarkTemplate">
+        <!-- ClipToBounds=False 允许内容溢出；IsHitTestVisible=False 不挡点击 -->
+        <Grid ClipToBounds="False" IsHitTestVisible="False">
+            <Grid.Background>
+				<VisualBrush TileMode="Tile"
+							 Viewport="0,0,300,110"
+							 ViewportUnits="Absolute"
+							 Viewbox="0,0,300,110"
+							 ViewboxUnits="Absolute"
+							 Stretch="None"
+							 Opacity="0.25">
+					<VisualBrush.Visual>
+						<Grid Width="260" Height="100">
+							<!-- 第一行：90HXWindowsUnlock -->
+                                <TextBlock Text="https://github.com/Qi-2007/90HXWindowsUnlock      "
+									   FontSize="10" FontWeight="SemiBold" Foreground="#64748B"
+									   HorizontalAlignment="Center" VerticalAlignment="Top"
+									   Margin="0,30,0,0"
+									   RenderTransformOrigin="0.5,0.5">
+								<TextBlock.RenderTransform>
+									<RotateTransform Angle="-18" />
+								</TextBlock.RenderTransform>
+							</TextBlock>
+
+							<!-- 第二行：免费工具 · 禁止倒卖 -->
+							<TextBlock Text="免费工具 · 禁止倒卖"
+									   FontSize="13" FontWeight="SemiBold" Foreground="#64748B"
+									   HorizontalAlignment="Center" VerticalAlignment="Bottom"
+									   Margin="0,0,0,30"
+									   RenderTransformOrigin="0.5,0.5">
+								<TextBlock.RenderTransform>
+									<RotateTransform Angle="-18" />
+								</TextBlock.RenderTransform>
+							</TextBlock>
+						</Grid>
+					</VisualBrush.Visual>
+				</VisualBrush>
+            </Grid.Background>
+        </Grid>
+    </DataTemplate>
+        <SolidColorBrush x:Key="AccentBrush" Color="#0067C0" />
+        <SolidColorBrush x:Key="MutedBrush" Color="#64748B" />
+        <Style x:Key="Card" TargetType="Border">
+            <Setter Property="Background" Value="White" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="BorderBrush" Value="#E2E8F0" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="18" />
+            <Setter Property="Effect">
+                <Setter.Value><DropShadowEffect BlurRadius="18" ShadowDepth="2" Opacity="0.09" Color="#506078" /></Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="ActionButton" TargetType="Button">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="Padding" Value="18,0" />
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderBrush" Value="#D4DDE8" />
+            <Setter Property="Foreground" Value="#203047" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder" Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="1"
+                                CornerRadius="6">
+                            <ContentPresenter Margin="{TemplateBinding Padding}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                              RecognizesAccessKey="True" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.84" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.70" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="ButtonBorder" Property="Opacity" Value="0.42" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ButtonBorder" Property="BorderBrush" Value="#0067C0" />
+                                <Setter TargetName="ButtonBorder" Property="BorderThickness" Value="2" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="PrimaryButton" TargetType="Button" BasedOn="{StaticResource ActionButton}">
+            <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+            <Setter Property="BorderBrush" Value="#0059A6" />
+            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Height" Value="44" />
+        </Style>
+        <Style x:Key="SectionTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="18" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="#182536" />
+        </Style>
+        <Style x:Key="Caption" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+        </Style>
+        <Style TargetType="ScrollBar">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollBar">
+                        <Track x:Name="PART_Track" IsDirectionReversed="True" Orientation="{TemplateBinding Orientation}">
+                            <Track.DecreaseRepeatButton>
+                                <RepeatButton x:Name="Decrease" Command="ScrollBar.PageUpCommand" Focusable="False">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.DecreaseRepeatButton>
+                            <Track.Thumb>
+                                <Thumb>
+                                    <Thumb.Template><ControlTemplate TargetType="Thumb"><Border Background="#8D9BAE" Opacity="0.65" CornerRadius="4" Margin="2" /></ControlTemplate></Thumb.Template>
+                                </Thumb>
+                            </Track.Thumb>
+                            <Track.IncreaseRepeatButton>
+                                <RepeatButton x:Name="Increase" Command="ScrollBar.PageDownCommand" Focusable="False">
+                                    <RepeatButton.Template><ControlTemplate TargetType="RepeatButton"><Border Background="Transparent" /></ControlTemplate></RepeatButton.Template>
+                                </RepeatButton>
+                            </Track.IncreaseRepeatButton>
+                        </Track>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="Orientation" Value="Horizontal">
+                                <Setter TargetName="PART_Track" Property="IsDirectionReversed" Value="False" />
+                                <Setter TargetName="Decrease" Property="Command" Value="ScrollBar.PageLeftCommand" />
+                                <Setter TargetName="Increase" Property="Command" Value="ScrollBar.PageRightCommand" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter Property="Width" Value="Auto" /><Setter Property="Height" Value="10" /></Trigger></Style.Triggers>
+        </Style>
+        <Style TargetType="ProgressBar">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ProgressBar">
+                        <Grid x:Name="PART_Track" ClipToBounds="True">
+                            <Border Background="{TemplateBinding Background}" CornerRadius="2" />
+                            <Border x:Name="PART_Indicator" Background="{TemplateBinding Foreground}" CornerRadius="2" HorizontalAlignment="Left" />
+                            <Border x:Name="Pulse" Background="{TemplateBinding Foreground}" CornerRadius="2" Width="100" HorizontalAlignment="Left" Visibility="Collapsed">
+                                <Border.RenderTransform><TranslateTransform X="-100" /></Border.RenderTransform>
+                            </Border>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsIndeterminate" Value="True">
+                                <Setter TargetName="PART_Indicator" Property="Visibility" Value="Collapsed" />
+                                <Setter TargetName="Pulse" Property="Visibility" Value="Visible" />
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard x:Name="PulseAnimation"><Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="Pulse" Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)" From="-100" To="900" Duration="0:0:2" RepeatBehavior="Forever" />
+                                    </Storyboard></BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions><StopStoryboard BeginStoryboardName="PulseAnimation" /></Trigger.ExitActions>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Background="#F4F6F9">
+        <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+        <Border Grid.Row="0" Background="White" BorderBrush="#E3E8EF" BorderThickness="0,0,0,1" Padding="30,20">
+            <Grid>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
+                    <TextBlock Text="CMP 90HX 解锁控制台" FontSize="24" FontWeight="SemiBold" ToolTip="项目仓库：https://github.com/Qi-2007/90HXWindowsUnlock" Cursor="Hand" MouseLeftButtonUp="OpenRepo"/>
+                    <TextBlock Text="Windows解锁驱动、证书和计划任务管理" Style="{StaticResource Caption}" Margin="0,3,0,0" />
+                </StackPanel>
+                <Border Grid.Column="2" Background="#EDF5FC" CornerRadius="12" Padding="12,6" VerticalAlignment="Center">
+                    <TextBlock x:Name="EnvironmentText" Text="Windows · x64" Foreground="#1763A0" FontSize="12" FontWeight="SemiBold" />
+                </Border>
+            </Grid>
+        </Border>
+
+            <Grid Grid.Row="1" Margin="24,22,24,24">
+                <Grid.ColumnDefinitions><ColumnDefinition Width="300" /><ColumnDefinition Width="20" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                <ScrollViewer Grid.Column="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled" Padding="2,0,5,4">
+                <StackPanel>
+                    <Border Style="{StaticResource Card}">
+                        <StackPanel>
+                            <DockPanel>
+                                <TextBlock Text="当前设备" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
+                                <Button x:Name="RefreshButton" Content="刷新" Style="{StaticResource ActionButton}" Width="68" Height="30"
+                                        HorizontalAlignment="Right" DockPanel.Dock="Right" Click="RefreshButton_Click" />
+                            </DockPanel>
+                            <Border x:Name="OverallBadge" Background="#EFF6FF" CornerRadius="6" Padding="11,8" Margin="0,14,0,14">
+                                <TextBlock x:Name="OverallText" Text="正在读取状态…" Foreground="#195FA0" FontWeight="SemiBold" TextWrapping="Wrap" />
+                            </Border>
+                            <TextBlock x:Name="GpuText" Text="正在检测" FontWeight="SemiBold" Margin="0,4,0,11" TextWrapping="Wrap" />
+                            <Grid Margin="0,0,0,14">
+                                <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <TextBlock Text="PnP 状态" Style="{StaticResource Caption}" VerticalAlignment="Center" />
+                                <TextBlock x:Name="PnpText" Grid.Column="1" Text="—" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Text="DMA 驱动" Style="{StaticResource Caption}" Margin="0,10,0,0" VerticalAlignment="Center" />
+                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.Column="1" Text="—" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                            </Grid>
+                            <TextBlock x:Name="UpdatedText" Text="—" Style="{StaticResource Caption}" />
+                            <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="30" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,12,0,0" Click="PrepareDriverButton_Click" ToolTip="查看并管理系统根证书和 DMA 驱动。" />
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                        <StackPanel>
+                            <TextBlock Text="操作" Style="{StaticResource SectionTitle}" />
+                            <TextBlock Text="首次使用先进行环境检查。"
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,14" />
+                            <Button x:Name="CheckButton" Content="环境检查" Style="{StaticResource ActionButton}" Click="CheckButton_Click" ToolTip="检查文件、核心、根证书、驱动安装状态、DMA 映射及只读硬件预检。" />
+                            <Button x:Name="TaskManagerButton" Content="计划任务管理" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="TaskManagerButton_Click" ToolTip="管理开机和睡眠唤醒自动解锁任务。" />
+                            <CheckBox x:Name="ConservativeTiming" Content="保守兼容模式（较慢）" Margin="0,14,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" ToolTip="默认使用快速时序并检查设备就绪。需要长等待时可手动勾选；失败不会自动重试。" />
+                            <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,12,0,0" Click="UnlockButton_Click" ToolTip="使用核心 469dc0c。默认快速时序；暂时停用显卡，恢复后验证一次。" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Column="2">
+                    <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="16" /><RowDefinition Height="*" /></Grid.RowDefinitions>
+                    <Border x:Name="SummaryCard" Grid.Row="0" Style="{StaticResource Card}">
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <Button x:Name="ReadUnlockButton" Content="刷新解锁状态" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Padding="12,0" Style="{StaticResource ActionButton}" Click="ReadUnlockButton_Click" ToolTip="采集一次快照并判断解锁状态；不启动 DMA 驱动、不改变显卡启停状态。" />
+                                <TextBlock Text="显卡解锁状态" Style="{StaticResource SectionTitle}" />
+                            </DockPanel>
+                            <UniformGrid Columns="3" Margin="0,0,0,10">
+                                <StackPanel><TextBlock Text="PCIe 当前链路" Style="{StaticResource Caption}" /><TextBlock x:Name="LinkText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" TextWrapping="Wrap" /></StackPanel>
+                                <StackPanel Margin="10,0,0,0"><TextBlock Text="计算功能" Style="{StaticResource Caption}" /><TextBlock x:Name="ComputeText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
+                                <StackPanel Margin="10,0,0,0"><TextBlock Text="图形功能" Style="{StaticResource Caption}" /><TextBlock x:Name="GraphicsText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
+                            </UniformGrid>
+                            <TextBlock x:Name="UnlockReadDetail" Text="启动后自动读取一次。功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <Border Height="1" Background="#E3E8EF" Margin="0,0,0,12" />
+                            <DockPanel>
+                                <TextBlock Text="执行进度" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
+                                <TextBlock x:Name="ElapsedText" Text="尚未开始" Style="{StaticResource Caption}" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                            </DockPanel>
+                            <TextBlock x:Name="OperationTitle" Text="等待操作" FontSize="20" FontWeight="SemiBold" Margin="0,15,0,5" TextWrapping="Wrap" />
+                            <TextBlock x:Name="OperationDetail" Text="选择左侧操作开始手动解锁。"
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" MaxHeight="76" TextTrimming="CharacterEllipsis" ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}" />
+                            <ProgressBar x:Name="ActivityBar" Height="4" Margin="0,16,0,0" Visibility="Hidden" IsIndeterminate="True"
+                                         Foreground="{StaticResource AccentBrush}" Background="#E4EBF3" />
+                            <Border x:Name="OperationNotice" Visibility="Collapsed" Background="#F5F8FC" CornerRadius="9" Padding="13,11" Margin="0,18,0,0">
+                                <TextBlock Text="解锁会暂时停用显卡。原本停用的设备将保持停用；检测到 DMA 未释放时，需要保持停用并冷启动。"
+                                           TextWrapping="Wrap" Foreground="#52657B" FontSize="12" />
+                            </Border>
+                        </StackPanel>
+                        </ScrollViewer>
+                    </Border>
+
+                    <Border Grid.Row="2" Style="{StaticResource Card}" Padding="18">
+                        <Grid>
+                            <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <DockPanel Grid.Row="0" Margin="0,0,0,12">
+                                <TextBlock Text="运行日志" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button x:Name="CopyLogsButton" Content="复制" Style="{StaticResource ActionButton}" Padding="10,0" Height="30" Margin="8,0" Click="CopyLogsButton_Click" ToolTip="复制当前窗口的日志" />
+                                    <Button Content="打开目录" Style="{StaticResource ActionButton}" Padding="10,0" Height="30" Click="OpenLogsButton_Click" />
+                                </StackPanel>
+                            </DockPanel>
+                            <Border Grid.Row="1" Background="#101A2A" CornerRadius="6" Padding="12">
+                                <TextBox x:Name="LogBox" Background="Transparent" Foreground="#D7E4F4" BorderThickness="0"
+                                         FontFamily="Cascadia Mono, Consolas" FontSize="12" IsReadOnly="True" TextWrapping="NoWrap"
+                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="当前操作日志" />
+                            </Border>
+                            <DockPanel Grid.Row="2" Margin="0,12,0,0">
+                                <CheckBox x:Name="FollowLogs" Content="跟随最新日志" IsChecked="True" FontSize="12" Foreground="{StaticResource MutedBrush}" DockPanel.Dock="Right" VerticalAlignment="Center" />
+                                <TextBlock x:Name="SessionText" Text="操作记录会自动保存" Style="{StaticResource Caption}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+
+        <Border Grid.Row="2" Background="White" BorderBrush="#E3E8EF" BorderThickness="0,1,0,0" Padding="30,11">
+            <DockPanel>
+                <TextBlock Text="免费工具 · 禁止倒卖  |  驱动/GUI开发：Qi | 解锁核心：日向 | 解锁有风险，后果自负 | 遇到问题请在GitHub Issue反馈 | 觉得好用请给个Star" Foreground="{StaticResource MutedBrush}" FontSize="12" ToolTip="项目仓库：https://github.com/Qi-2007/90HXWindowsUnlock" Cursor="Hand" MouseLeftButtonUp="OpenRepo"/>
+                <TextBlock x:Name="FooterText" Text="就绪" Foreground="{StaticResource MutedBrush}" FontSize="12" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+            </DockPanel>
+        </Border>
+        <!-- Keep the watermark above all content without intercepting input. -->
+        <ContentControl Grid.Row="1" Content="Watermark" ContentTemplate="{StaticResource WatermarkTemplate}"
+                        IsHitTestVisible="False" Focusable="False" ClipToBounds="True"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </Grid>
+</Window>
+
