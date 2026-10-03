@@ -145,6 +145,32 @@
             </Setter>
             <Style.Triggers><Trigger Property="Orientation" Value="Horizontal"><Setter Property="Width" Value="Auto" /><Setter Property="Height" Value="10" /></Trigger></Style.Triggers>
         </Style>
+        <!-- The system ScrollViewer template paints a light scroll-corner when
+             both bars appear. Logs use this template without a corner filler. -->
+        <Style x:Key="LogScrollViewer" TargetType="ScrollViewer">
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid Background="{TemplateBinding Background}">
+                            <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                            <Grid.RowDefinitions><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                            <ScrollContentPresenter x:Name="PART_ScrollContentPresenter" Grid.Row="0" Grid.Column="0"
+                                                    Margin="{TemplateBinding Padding}" Content="{TemplateBinding Content}"
+                                                    ContentTemplate="{TemplateBinding ContentTemplate}"
+                                                    CanContentScroll="{TemplateBinding CanContentScroll}" />
+                            <ScrollBar x:Name="PART_VerticalScrollBar" Grid.Row="0" Grid.Column="1" Orientation="Vertical"
+                                       Style="{StaticResource {x:Type ScrollBar}}" Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}" Value="{TemplateBinding VerticalOffset}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}" />
+                            <ScrollBar x:Name="PART_HorizontalScrollBar" Grid.Row="1" Grid.Column="0" Orientation="Horizontal"
+                                       Style="{StaticResource {x:Type ScrollBar}}" Maximum="{TemplateBinding ScrollableWidth}"
+                                       ViewportSize="{TemplateBinding ViewportWidth}" Value="{TemplateBinding HorizontalOffset}"
+                                       Visibility="{TemplateBinding ComputedHorizontalScrollBarVisibility}" />
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
         <Style TargetType="ProgressBar">
             <Setter Property="Template">
                 <Setter.Value>
@@ -196,36 +222,37 @@
                     <Border Style="{StaticResource Card}">
                         <StackPanel>
                             <DockPanel>
-                                <TextBlock Text="当前设备" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
+                                <TextBlock Text="当前设备" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" VerticalAlignment="Center" />
                                 <Button x:Name="RefreshButton" Content="刷新" Style="{StaticResource ActionButton}" Width="68" Height="30"
                                         HorizontalAlignment="Right" DockPanel.Dock="Right" Click="RefreshButton_Click" />
                             </DockPanel>
-                            <Border x:Name="OverallBadge" Background="#EFF6FF" CornerRadius="6" Padding="11,8" Margin="0,14,0,14">
+                            <Border x:Name="OverallBadge" Background="#EFF6FF" CornerRadius="6" Padding="11,8" Margin="0,4,0,6">
                                 <TextBlock x:Name="OverallText" Text="正在读取状态…" Foreground="#195FA0" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </Border>
-                            <TextBlock x:Name="GpuText" Text="正在检测" FontWeight="SemiBold" Margin="0,4,0,11" TextWrapping="Wrap" />
-                            <Grid Margin="0,0,0,14">
+                            <TextBlock x:Name="GpuText" Text="正在检测" FontWeight="SemiBold" Margin="0,2,0,4" TextWrapping="Wrap" />
+                            <Grid Margin="0,0,0,5">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <TextBlock Text="PnP 状态" Style="{StaticResource Caption}" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PnpText" Grid.Column="1" Text="—" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Grid.Row="1" Text="DMA 驱动" Style="{StaticResource Caption}" Margin="0,10,0,0" VerticalAlignment="Center" />
-                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.Column="1" Text="—" FontWeight="SemiBold" Margin="0,10,0,0" TextWrapping="Wrap" />
+                                <TextBlock x:Name="PnpText" Grid.Column="1" Text="测试" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock Grid.Row="1" Text="DMA 驱动" Style="{StaticResource Caption}" Margin="0,8,0,0" VerticalAlignment="Center" />
+                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.Column="1" Text="测试" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap" />
                             </Grid>
-                            <TextBlock x:Name="UpdatedText" Text="—" Style="{StaticResource Caption}" />
-                            <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="30" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,12,0,0" Click="PrepareDriverButton_Click" ToolTip="查看并管理系统根证书和 DMA 驱动。" />
+                            <TextBlock x:Name="UpdatedText" Text="测试" Style="{StaticResource Caption}" />
+                            <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="35" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PrepareDriverButton_Click" ToolTip="查看并管理系统根证书和 DMA 驱动。" />
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource Card}" Margin="0,18,0,0">
+                    <Border Style="{StaticResource Card}" Margin="0,15,0,0">
                         <StackPanel>
                             <TextBlock Text="操作" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="首次使用先进行环境检查。"
-                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,8,0,14" />
+                                       Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
                             <Button x:Name="CheckButton" Content="环境检查" Style="{StaticResource ActionButton}" Click="CheckButton_Click" ToolTip="检查文件、核心、根证书、驱动安装状态、DMA 映射及只读硬件预检。" />
                             <Button x:Name="TaskManagerButton" Content="计划任务管理" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="TaskManagerButton_Click" ToolTip="管理开机和睡眠唤醒自动解锁任务。" />
-                            <CheckBox x:Name="ConservativeTiming" Content="保守兼容模式（较慢）" Margin="0,14,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" ToolTip="默认使用快速时序并检查设备就绪。需要长等待时可手动勾选；失败不会自动重试。" />
-                            <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,12,0,0" Click="UnlockButton_Click" ToolTip="使用核心 469dc0c。默认快速时序；暂时停用显卡，恢复后验证一次。" />
+                            <Button x:Name="PowerManagerButton" Content="空闲省电" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PowerManagerButton_Click" ToolTip="管理空闲 P8、负载阈值、全速应用例外和后台省电任务。" />
+                            <CheckBox x:Name="ConservativeTiming" Content="保守兼容模式（较慢）" Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" ToolTip="默认使用快速时序并检查设备就绪。需要长等待时可手动勾选；失败不会自动重试。" />
+                            <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,10,0,0" Click="UnlockButton_Click" ToolTip="使用核心 469dc0c。默认快速时序；暂时停用显卡，恢复后验证一次。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -277,7 +304,9 @@
                             <Border Grid.Row="1" Background="#101A2A" CornerRadius="6" Padding="12">
                                 <TextBox x:Name="LogBox" Background="Transparent" Foreground="#D7E4F4" BorderThickness="0"
                                          FontFamily="Cascadia Mono, Consolas" FontSize="12" IsReadOnly="True" TextWrapping="NoWrap"
-                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="当前操作日志" />
+                                         VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="当前操作日志">
+                                    <TextBox.Resources><Style TargetType="ScrollViewer" BasedOn="{StaticResource LogScrollViewer}" /></TextBox.Resources>
+                                </TextBox>
                             </Border>
                             <DockPanel Grid.Row="2" Margin="0,12,0,0">
                                 <CheckBox x:Name="FollowLogs" Content="跟随最新日志" IsChecked="True" FontSize="12" Foreground="{StaticResource MutedBrush}" DockPanel.Dock="Right" VerticalAlignment="Center" />

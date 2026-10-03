@@ -2,6 +2,7 @@ using System;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 
 using System.Text;
 using System.Text.RegularExpressions;
@@ -192,6 +193,7 @@ namespace CMP90HX.Control
             bool enabled = !value && App.PreviewState == null;
             CheckButton.IsEnabled = enabled;
             TaskManagerButton.IsEnabled = enabled;
+            PowerManagerButton.IsEnabled = enabled;
             UnlockButton.IsEnabled = enabled;
             ConservativeTiming.IsEnabled = enabled;
             ReadUnlockButton.IsEnabled = enabled;
@@ -336,6 +338,13 @@ namespace CMP90HX.Control
         }
         void PrepareDriverButton_Click(object sender, RoutedEventArgs e) { OpenManagement(false); }
         void TaskManagerButton_Click(object sender, RoutedEventArgs e) { OpenManagement(true); }
+        void PowerManagerButton_Click(object sender, RoutedEventArgs e)
+        {
+            if(busy || App.PreviewState!=null) return;
+            SetBusy(true);
+            try {new PowerWindow(this,runtime,logs) {Owner=this}.ShowDialog();}
+            finally {SetBusy(false);RefreshStatus();}
+        }
         async void CheckButton_Click(object sender, RoutedEventArgs e) { await RunWorkflow("Environment", "环境检查"); }
         async void UnlockButton_Click(object sender, RoutedEventArgs e) { await RunWorkflow("Unlock", "解锁"); }
 
@@ -376,6 +385,7 @@ namespace CMP90HX.Control
             SessionText.Text = "预览记录 · 不执行硬件操作";
             AcceptOutput("[10:24:00] GUI_WORKFLOW_BEGIN mode=Unlock\r\n[10:24:01] DMA_BACKEND=kernel-physical-experiment\r\n[10:24:02] STAGE=BRIDGE_ECAM_PREFLIGHT\r\n[10:24:03] STAGE=INITIAL_DUAL_SBR\r\n[10:24:08] STAGE=COMPUTE\r\n");
             for (int i = 0; i < 24; i++) AppendLog("[示例日志] 等待当前阶段完成…\r\n");
+            AppendLog("[示例日志] 水平滚动预览：GPU 状态寄存器 " + String.Join(" · ", Enumerable.Repeat("0x88888888",12)) + "\r\n");
             AcceptOutput("[10:25:26] STAGE=GRAPHICS\r\n");
             ElapsedText.Text = "已用时 01:26";
             FooterText.Text = "预览模式";
@@ -399,7 +409,7 @@ namespace CMP90HX.Control
                 FrameworkElement content = (FrameworkElement)Content;
                 if (LogBox.ActualHeight < 80 || LogBox.ActualWidth < 250)
                     throw new InvalidOperationException("Log viewport is too small: " + LogBox.ActualWidth + " x " + LogBox.ActualHeight);
-                if (CheckButton.IsEnabled || UnlockButton.IsEnabled || TaskManagerButton.IsEnabled || ReadUnlockButton.IsEnabled || PrepareDriverButton.IsEnabled)
+                if (CheckButton.IsEnabled || UnlockButton.IsEnabled || TaskManagerButton.IsEnabled || PowerManagerButton.IsEnabled || ReadUnlockButton.IsEnabled || PrepareDriverButton.IsEnabled)
                     throw new InvalidOperationException("Preview must not enable workflows.");
                 RenderTargetBitmap bitmap = new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth),
                     (int)Math.Ceiling(content.ActualHeight), 96, 96, PixelFormats.Pbgra32);

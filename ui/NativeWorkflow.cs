@@ -12,7 +12,7 @@ namespace CMP90HX.Control
 {
     internal sealed class RuntimePaths
     {
-        internal const string Version="1.1.0";
+        internal const string Version="1.2.2";
         internal const string DmaHash="8A0E82640D1E16F7C949E17AB2A7A80F25C125EA0C317440E195DE7368608B40";
         internal const string CoreHash="B533B7B245ED606C151CA336B9A6BACEBE935E3EC478246E879C668A4DD98A6A";
         internal readonly string Root, Worker, Drivers, DmaDriver, Core, Logs, Certificates;
@@ -44,7 +44,7 @@ namespace CMP90HX.Control
             if(!File.Exists(Worker)) throw new FileNotFoundException("缺少硬件工作进程："+Worker);
             if(Packaged) {
                 var entries=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(Root,"files.sha256.json")));
-                foreach(string relative in new[]{"runtime/CMP90HXGen2.exe","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
+                foreach(string relative in new[]{"runtime/CMP90HXGen2.exe","runtime/CMP90HXGen2.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
                     if(entries==null || !entries.ContainsKey(relative)) throw new IOException("运行包清单缺少 "+relative);
                     RequireHash(Path.Combine(Root,relative.Replace('/',Path.DirectorySeparatorChar)),entries[relative]);
                 }
@@ -171,10 +171,12 @@ namespace CMP90HX.Control
         internal int Execute(string mode,string runDirectory)
         {
             directory=runDirectory; Directory.CreateDirectory(directory);
-            using(Mutex mutex=new Mutex(false,@"Global\CMP90HX_FullTestScript")) {
+            using(Mutex mutex=platform is WindowsWorkflowPlatform && mode!="Check"?
+                SharedSynchronization.OpenMutex(SharedSynchronization.HardwareName):new Mutex(false)) {
                 bool owned=false;
+                IDisposable powerPause=null;
                 try {
-                    try { owned=mutex.WaitOne(0); } catch(AbandonedMutexException) { owned=true; }
+                    try { owned=mutex.WaitOne(1000); } catch(AbandonedMutexException) { owned=true; }
                     if(!owned) throw new IOException("另一项工作流正在运行，请等待完成。");
                     if(!new[]{"Check","Status","Install","Preflight","Environment","AutoUnlock","Unlock","Verify"}.Contains(mode)) throw new ArgumentException("Unknown workflow.");
                     log("NATIVE_WORKFLOW_BEGIN mode="+mode);
@@ -194,6 +196,7 @@ namespace CMP90HX.Control
                         Require(platform.Run("core-test","--core",paths.Core),"Pinned core mock tests");
                     }
                     GpuDevice target=automatic?WaitTarget():platform.Target(); log("Target: "+target.InstanceId+" / BDF="+target.Bdf);
+                    if(platform is WindowsWorkflowPlatform) powerPause=PowerCoordination.Pause();
                     if(mode=="Status") {
                         var state=Snapshot(target,"unlock-status.json");
                         bool verified=false;
@@ -252,7 +255,7 @@ namespace CMP90HX.Control
                     }
                     Verify(target,Width(baseline.Gpu),Width(baseline.Bridge)); return 0;
                 } catch(Exception error) { log("FAILED: "+error.Message); return 1; }
-                finally { if(owned) mutex.ReleaseMutex(); }
+                finally { if(powerPause!=null) powerPause.Dispose();if(owned) mutex.ReleaseMutex(); }
             }
         }
         static int Width(UnlockSnapshot.Link link) { return link!=null && link.Status.HasValue ? (int)((link.Status.Value>>4)&63) : 1; }

@@ -69,7 +69,7 @@ Windows SDK 版本与 WDK 版本一致。日志若只有 `/MD /EHsc` 且没有�
 
 ## 图形控制台和独立运行包
 
-`CMP90HXControl` 为 C# / WPF / .NET Framework 4.8 程序。启动时一次请求 UAC，硬件工作进程继承管理员权限，后续操作不再反复提权。
+`CMP90HXControl` 为 C# / WPF / .NET Framework 4.8.1 程序。启动时一次请求 UAC，硬件工作进程继承管理员权限，后续操作不再反复提权。
 GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读取、预检、解锁编排、恢复与一次验证均已移植到 C#；运行时不启动 PowerShell。
 硬件核心继续在独立 `CMP90HXGen2.exe` 中运行，避免核心异常直接破坏 GUI 进程。
 
@@ -86,16 +86,17 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 .\build-release.ps1
 ```
 
-使用本地 `build/dma-driver/CMP90HXDmaSigned.sys` 及 `build/dma-driver/cert/` 两个证书作为固定输入，生成 `dist/CMP90HX-Control-1.1.0-<时间>/` 和 ZIP、SHA256。
+使用本地 `build/dma-driver/CMP90HXDmaSigned.sys` 及 `build/dma-driver/cert/` 两个证书作为固定输入，生成 `dist/CMP90HX-Control-1.2.2-<时间>/` 和 ZIP、SHA256。
 包内包含 GUI、预编译工作进程、固定核心及参考驱动；解压后不依赖源码目录或开发工具。
 构建脚本运行原有核心自测和原生编排测试，并从发布目录执行不加载驱动的完整文件检查。
-开发构建仍需要 Visual Studio MSBuild；运行包使用 Windows 11 已有的 Framework 4.8。
+开发构建仍需要 Visual Studio MSBuild；运行包需要 .NET Framework 4.8.1。
 
 | 操作 | 内容 |
 | --- | --- |
 | 环境检查 | 文件与签名、核心模拟测试、系统根证书、驱动安装状态、DMA 映射/物理回读和只读硬件预检。 |
 | 驱动管理 | 独立窗口查看和安装/卸载两个固定指纹根证书及 DMA 驱动；已加载驱动卸载后重启生效。 |
 | 计划任务管理 | 独立窗口安装/卸载/手动触发 SYSTEM 开机及 Kernel-Power 107 唤醒任务；安装前自动补齐证书和驱动并通过环境检查。 |
+| 空闲省电 | 独立窗口设置空闲 P8、GPU 阈值、等待时间及全速应用例外；SYSTEM 后台常驻，解锁前暂停，设备恢复后重新检测。 |
 | 刷新解锁状态 | 一次只读快照，同时显示并判断两端 PCIe Gen/宽度、计算和图形解锁寄存器。启动后自动执行一次，不启动 DMA 驱动。 |
 | 开始解锁 | 默认快速时序，保留保守兼容开关；原本启用的设备暂时停用，恢复后以一次快照验证。 |
 
@@ -104,6 +105,12 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 “已解锁”表示计算/图形寄存器符合固定核心预期，未进行负载性能测试。
 驱动保留到本次启动结束；旧服务若运行中，先重启再切换签名驱动。
 详细说明见 [运行包使用说明](docs/RELEASE_GUIDE_ZH.md)。
+
+自动解锁任务取消原来的开机 20 秒、唤醒 10 秒延迟，直接触发后等待设备就绪；更新后重新安装任务生效。
+内置省电默认关闭，启用前退出 Inspector 的 Multi Display Power Saver；启用会停用其已识别的登录任务。
+通过系统 NVAPI 设置 P8 限制，GPU/视频负载或应用例外触发时恢复自动性能策略。该驱动私有接口的真实写入及睡眠恢复尚待实机验证。
+
+`--power-monitor` 在创建 WPF 应用前进入后台循环，不加载界面，也不运行解锁状态读取或核心/参考驱动检查。桌面重复启动会恢复并聚焦已有 GUI；全局互斥锁同时允许 SYSTEM/管理员访问。卸载或更新任务会清理未被任务或进程使用的后台副本，活动副本在后续启动时继续清理。
 
 开发者可以使用纯示例数据预览，工作流按钮禁用：
 
@@ -204,4 +211,4 @@ gcc -std=c11 -Wall -Wextra -Werror driver/tests/state_test.c -o /tmp/cmp90hx-sta
 /tmp/cmp90hx-state-test
 ```
 
-新写的平台代码采用 MIT 许可，上游依赖范围见 [第三方说明](THIRD_PARTY_NOTICES.md)。
+平台代码的授权条款见 [LICENSE](LICENSE)，上游依赖范围见 [第三方说明](THIRD_PARTY_NOTICES.md)。

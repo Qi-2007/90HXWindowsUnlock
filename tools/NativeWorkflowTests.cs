@@ -6,9 +6,21 @@ using System.Linq;
 using System.Text;
 using System.Web.Script.Serialization;
 using System.Xml;
+using System.Security.AccessControl;
+using System.Security.Principal;
+using System.Threading;
 
 namespace CMP90HX.Control
 {
+    internal sealed class FakePowerGpu : IPowerGpu
+    {
+        internal PowerSample Sample=new PowerSample {Pstate=0,InstanceId="TEST_90HX"};
+        internal readonly List<int> Writes=new List<int>();
+        internal bool FailP8,FailRelease;
+        public PowerSample Read() {return Sample;}
+        public void Limit(int state) {Writes.Add(state);if(state==8 && FailP8 || state==0 && FailRelease) throw new IOException("mock NVAPI failure");}
+        public void Dispose() { }
+    }
     internal sealed class FakePlatform : IWorkflowPlatform
     {
         internal uint Code;
@@ -58,10 +70,20 @@ namespace CMP90HX.Control
         }
         static int Main(string[] args)
         {
+            if(args.Length==2 && args[0]=="--probe-sync") {
+                try {using(var mutex=SharedSynchronization.OpenMutex(SharedSynchronization.HardwareName)) File.WriteAllText(args[1],"SHARED_MUTEX_ACCESS_PASSED");return 0;}
+                catch(Exception error) {File.WriteAllText(args[1],error.ToString());return 1;}
+            }
+            if(args.Length==1 && args[0]=="--probe-power") {
+                try {using(var api=new NvidiaPowerApi()) Console.WriteLine(new JavaScriptSerializer().Serialize(api.Read()));Console.WriteLine("INSPECTOR_CONFLICT="+InspectorConflict.Running());return 0;}
+                catch(Exception error) {Console.Error.WriteLine(error);return 1;}
+            }
             if(args.Length>0 && args[0]=="--echo") {
                 Console.Write(new JavaScriptSerializer().Serialize(args.Skip(1).ToArray())); return 0;
             }
             try {
+                TestSynchronizationAndCleanup();
+                TestPower();
                 var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory); List<string> log;
                 var good=new FakePlatform(); int code=Run(paths,good,"Unlock",out log);
                 Require(code==0 && good.Disables==1 && good.Enables==1 && good.SnapshotCalls==2 && log.Count(s=>s.StartsWith("VERIFY_SAMPLE="))==1 && log.Any(s=>s.StartsWith("FULL_UNLOCK_VERIFIED_AFTER")),"enabled unlock restores then verifies exactly one snapshot");
@@ -112,8 +134,11 @@ namespace CMP90HX.Control
                 Require(setupFailed && !registered,"certificate repair must actually succeed before task registration");
                 string xml=TaskManagement.Xml(@"C:\ProgramData\CMP90HX\A & B\CMP90HXControl.exe");
                 var doc=new XmlDocument();doc.LoadXml(xml);var ns=new XmlNamespaceManager(doc.NameTable);ns.AddNamespace("t",doc.DocumentElement.NamespaceURI);
-                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==1 && doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=107") && !doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=42") && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--auto-unlock" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","task definition uses boot wake SYSTEM and never forcibly terminates DMA work");
+                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==1 && doc.SelectNodes("//t:Delay",ns).Count==0 && doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=107") && !doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=42") && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--auto-unlock" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","task definition uses boot wake SYSTEM without fixed delays or forced DMA termination");
+                doc.LoadXml(TaskManagement.PowerXml(paths.Worker));
+                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==0 && doc.SelectNodes("//t:Delay",ns).Count==0 && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--power-monitor" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","power task stays resident as SYSTEM with no forced termination");
                 TaskManagement.ValidateDefinition(paths.Worker);
+                TaskManagement.ValidateDefinition(paths.Worker,true);
                 Require(true,"Windows Task Scheduler accepts the generated definition without registering a task");
                 Console.WriteLine("READ_ONLY_TASK "+TaskManagement.Query().Text);
                 CertificateManager.ValidateFiles(paths);
@@ -124,6 +149,8 @@ namespace CMP90HX.Control
                 var nextSession=new LogSession(logRoot);
                 Require(File.Exists(Path.Combine(firstSession.DirectoryPath,"first.log")),"startup cleanup preserves logs owned by a live session");
                 firstSession.Dispose();nextSession.Dispose();
+                // Windows clock granularity may give adjacent sessions the same timestamp.
+                Directory.SetCreationTimeUtc(nextSession.DirectoryPath,DateTime.UtcNow.AddMinutes(-2));
                 using(var lastSession=new LogSession(logRoot)) {
                     Require(!Directory.Exists(firstSession.DirectoryPath) && !Directory.Exists(nextSession.DirectoryPath),"next startup removes previous inactive logs");
                 }
@@ -143,6 +170,88 @@ namespace CMP90HX.Control
                 }
                 Console.WriteLine("NATIVE_WORKFLOW_TESTS_PASSED count="+count); return 0;
             } catch(Exception error) { Console.Error.WriteLine(error);return 1; }
+        }
+        static void TestSynchronizationAndCleanup()
+        {
+            string name=@"Local\CMP90HX-sync-test-"+Guid.NewGuid().ToString("N");
+            var security=new MutexSecurity();
+            using(var user=WindowsIdentity.GetCurrent()) security.AddAccessRule(new MutexAccessRule(user.User,MutexRights.Synchronize|MutexRights.Modify,AccessControlType.Allow));
+            bool created;
+            using(var original=new Mutex(false,name,out created,security))
+            using(var opened=SharedSynchronization.OpenMutex(name)) {
+                bool acquired=opened.WaitOne(0);if(acquired) opened.ReleaseMutex();
+                Require(acquired,"existing mutex opens with wait/release rights without demanding FullControl");
+                original.WaitOne();bool otherAcquired=true;
+                var thread=new Thread(()=>{otherAcquired=opened.WaitOne(0);if(otherAcquired) opened.ReleaseMutex();});thread.Start();thread.Join();original.ReleaseMutex();
+                Require(!otherAcquired,"restricted mutex still serializes independent threads");
+            }
+            using(var fresh=SharedSynchronization.OpenMutex(name)) {
+                var rules=fresh.GetAccessControl().GetAccessRules(true,false,typeof(SecurityIdentifier)).Cast<MutexAccessRule>().ToArray();
+                Require(new[]{WellKnownSidType.LocalSystemSid,WellKnownSidType.BuiltinAdministratorsSid}.All(t=>rules.Any(r=>r.IdentityReference.Equals(new SecurityIdentifier(t,null)) && (r.MutexRights&MutexRights.FullControl)==MutexRights.FullControl)),"new shared mutex explicitly grants SYSTEM and Administrators full access");
+            }
+            string root=Path.Combine(Path.GetTempPath(),"CMP90HX-cleanup-tests",Guid.NewGuid().ToString("N"));Directory.CreateDirectory(root);
+            string unused=Path.Combine(root,"1.2.0-aaaaaaaaaaaaaaaa"),referenced=Path.Combine(root,"1.2.1-bbbbbbbbbbbbbbbb"),running=Path.Combine(root,"1.2.1-cccccccccccccccc"),unknown=Path.Combine(root,"user-files");
+            foreach(string directory in new[]{unused,referenced,running,unknown}) {Directory.CreateDirectory(directory);File.WriteAllText(Path.Combine(directory,"CMP90HXControl.exe"),"fixture");}
+            using(var lease=new FileStream(Path.Combine(running,".in-use"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.ReadWrite)) {
+                RuntimeDeployment.Clean(root,new[]{Path.Combine(referenced,"CMP90HXControl.exe")},s=>{});
+                Require(!Directory.Exists(unused),"task uninstall cleanup removes unreferenced runtime copies");
+                Require(Directory.Exists(referenced) && Directory.Exists(running) && Directory.Exists(unknown),"cleanup preserves task references active runtime leases and unrelated directories");
+            }
+            RuntimeDeployment.Clean(root,new string[0],s=>{});
+            Require(!Directory.Exists(referenced) && !Directory.Exists(running) && Directory.Exists(unknown),"deferred cleanup removes released runtimes after references disappear");
+        }
+        static void TestPower()
+        {
+            DateTime start=new DateTime(2026,10,3,0,0,0,DateTimeKind.Utc);
+            var settings=new PowerSettings();var gpu=new FakePowerGpu();var intents=new List<bool>();
+            var engine=new PowerEngine(gpu,b=>intents.Add(b));
+            engine.Tick(settings,false,false,false,start);
+            Require(gpu.Writes.Count==0,"power is opt-in; default disabled policy never writes P-state");
+            settings.Enabled=true;
+            engine.Tick(settings,false,false,false,start);
+            engine.Tick(settings,false,false,false,start.AddSeconds(9));
+            Require(gpu.Writes.Count==0,"brief idle interval cannot apply P8");
+            engine.Tick(settings,false,false,false,start.AddSeconds(10));
+            engine.Tick(settings,false,false,false,start.AddSeconds(11));
+            Require(gpu.Writes.SequenceEqual(new[]{8}) && intents.SequenceEqual(new[]{true}),"continuous idle applies one P8 limit and records ownership");
+            gpu.Sample.Gpu=settings.Threshold;
+            engine.Tick(settings,false,false,false,start.AddSeconds(12));
+            Require(!engine.Limited && gpu.Writes.SequenceEqual(new[]{8,0}),"threshold reached releases P8 immediately");
+            gpu.Sample.Gpu=0;engine.Tick(settings,false,false,false,start.AddSeconds(13));
+            engine.Tick(settings,false,false,false,start.AddSeconds(22));
+            Require(!engine.Limited,"load recovery restarts the entire idle interval");
+            engine.Tick(settings,false,false,false,start.AddSeconds(23));gpu.Sample.Video=1;
+            engine.Tick(settings,false,false,false,start.AddSeconds(24));
+            Require(!engine.Limited && gpu.Writes.Last()==0,"any video activity releases the limit");
+            gpu.Sample.Video=0;engine.Tick(settings,false,false,false,start.AddSeconds(25));engine.Tick(settings,false,false,false,start.AddSeconds(35));
+            engine.Tick(settings,true,false,false,start.AddSeconds(36));
+            Require(!engine.Limited && gpu.Writes.Last()==0,"full-speed application releases the limit");
+            engine.Tick(settings,false,false,false,start.AddSeconds(37));engine.Tick(settings,false,false,false,start.AddSeconds(47));
+            var paused=engine.Tick(settings,false,true,false,start.AddSeconds(48));
+            engine.Tick(settings,false,false,false,start.AddSeconds(49));engine.Tick(settings,false,false,false,start.AddSeconds(58));
+            Require(!paused.LimitApplied && !engine.Limited,"unlock pause releases the limit and resumes with a fresh idle timer");
+            engine.Tick(settings,false,false,false,start.AddSeconds(59));
+            engine.Tick(settings,false,false,true,start.AddSeconds(60));
+            Require(!engine.Limited,"resume notification releases old limits before restarting idle detection");
+            engine.Tick(settings,false,false,false,start.AddSeconds(70));settings.Enabled=false;
+            engine.Tick(settings,false,false,false,start.AddSeconds(71));
+            Require(!engine.Limited && gpu.Writes.Last()==0 && intents.Last()==false,"disabling restores automatic policy and clears ownership");
+            settings.Enabled=true;var failedGpu=new FakePowerGpu {FailP8=true};bool intent=false;
+            var failed=new PowerEngine(failedGpu,b=>intent=b);failed.Tick(settings,false,false,false,start);
+            bool rejected=false;try {failed.Tick(settings,false,false,false,start.AddSeconds(10));} catch(IOException) {rejected=true;}
+            Require(rejected && !failed.Limited && !intent && failedGpu.Writes.SequenceEqual(new[]{8,0}),"failed P8 write attempts restoration and cannot report success");
+            failedGpu.FailRelease=true;failed.Tick(settings,false,false,false,start.AddSeconds(11));
+            rejected=false;try {failed.Tick(settings,false,false,false,start.AddSeconds(21));} catch(IOException) {rejected=true;}
+            Require(rejected && failed.Limited && intent,"failed restoration retains ownership for recovery");
+            failedGpu.FailRelease=false;failed.Release();
+            Require(!failed.Limited && !intent,"retry can release a retained limit");
+            var recoveredGpu=new FakePowerGpu();var recovered=new PowerEngine(recoveredGpu,b=>{},true);
+            recovered.Tick(settings,false,false,true,start);
+            Require(recoveredGpu.Writes.SequenceEqual(new[]{0}) && !recovered.Limited,"crash recovery restores automatic policy before idle detection");
+            var policy=new IdlePowerPolicy();policy.WantsP8(settings,gpu.Sample,false,start);
+            Require(!policy.WantsP8(settings,gpu.Sample,false,start.AddSeconds(-20)) && !policy.WantsP8(settings,gpu.Sample,false,start.AddSeconds(-11)),"clock rollback cannot bypass idle waiting");
+            settings.FullSpeedApps=Process.GetCurrentProcess().ProcessName+".exe";
+            Require(settings.HasFullSpeedApp(),"exception list resolves running process names including exe suffix");
         }
     }
 }

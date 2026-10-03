@@ -3,5 +3,5 @@ using System.Reflection;
 [assembly: AssemblyDescription("Windows control and unlock status for CMP 90HX")]
 [assembly: AssemblyCompany("CMP90HX")]
 [assembly: AssemblyProduct("CMP 90HX Control")]
-[assembly: AssemblyVersion("1.1.0.0")]
-[assembly: AssemblyFileVersion("1.1.0.0")]
+[assembly: AssemblyVersion("1.2.2.0")]
+[assembly: AssemblyFileVersion("1.2.2.0")]

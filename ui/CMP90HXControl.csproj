@@ -7,6 +7,7 @@
     <OutputType>WinExe</OutputType>
     <RootNamespace>CMP90HX.Control</RootNamespace>
     <AssemblyName>CMP90HXControl</AssemblyName>
+    <StartupObject>CMP90HX.Control.StartupProgram</StartupObject>
     <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <PlatformTarget>x64</PlatformTarget>
@@ -34,6 +35,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Web.Extensions" />
+    <Reference Include="System.Xml" />
     <Reference Include="Microsoft.CSharp" />
     <Reference Include="System.Xaml" />
     <Reference Include="PresentationCore" />
@@ -53,6 +55,14 @@
     <Compile Include="LogSession.cs" />
     <Compile Include="TaskManagement.cs" />
     <Compile Include="ManagementWindow.cs" />
+    <Compile Include="NvidiaPowerApi.cs" />
+    <Compile Include="PowerControl.cs" />
+    <Compile Include="PowerTasks.cs" />
+    <Compile Include="PowerWindow.cs" />
+    <Compile Include="SharedSynchronization.cs" />
+    <Compile Include="DesktopPresence.cs" />
+    <Compile Include="StartupProgram.cs" />
+    <Compile Include="RuntimeDeployment.cs" />
     <Compile Include="AssemblyInfo.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

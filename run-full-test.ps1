@@ -46,7 +46,19 @@ if (!$admin) {
 New-Item -ItemType Directory -Path $logs -Force | Out-Null
 Start-Transcript -Path (Join-Path $logs 'full-script.log') -Append | Out-Null
 $exitCode=1
-$workflowMutex=New-Object -TypeName System.Threading.Mutex -ArgumentList $false,'Global\CMP90HX_FullTestScript'
+$mutexName='Global\CMP90HX_FullTestScript'
+$mutexRights=[Security.AccessControl.MutexRights]::Synchronize -bor [Security.AccessControl.MutexRights]::Modify
+try { $workflowMutex=[Threading.Mutex]::OpenExisting($mutexName,$mutexRights) }
+catch [Threading.WaitHandleCannotBeOpenedException] {
+    $mutexAcl=[Security.AccessControl.MutexSecurity]::new()
+    foreach($sidType in @([Security.Principal.WellKnownSidType]::LocalSystemSid,[Security.Principal.WellKnownSidType]::BuiltinAdministratorsSid)) {
+        $sid=[Security.Principal.SecurityIdentifier]::new($sidType,$null)
+        $mutexAcl.AddAccessRule([Security.AccessControl.MutexAccessRule]::new($sid,[Security.AccessControl.MutexRights]::FullControl,[Security.AccessControl.AccessControlType]::Allow))
+    }
+    $mutexCreated=$false
+    try {$workflowMutex=[Threading.Mutex]::new($false,$mutexName,[ref]$mutexCreated,$mutexAcl)}
+    catch [UnauthorizedAccessException] {$workflowMutex=[Threading.Mutex]::OpenExisting($mutexName,$mutexRights)}
+}
 $workflowOwned=$false
 $workflowTimer=[Diagnostics.Stopwatch]::StartNew()
 try {

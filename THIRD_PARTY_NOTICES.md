@@ -1,6 +1,6 @@
 # Third-party inputs
 
-The MIT license covers this project's platform code, tools and dedicated Windows DMA
+The project license in LICENSE covers this project's platform code, tools and dedicated Windows DMA
 driver. It does not grant rights to upstream core or driver binaries.
 These binaries are local dependencies in ignored vendor/ and drivers/ directories.
 
@@ -34,3 +34,20 @@ Use -SourceDirectory to supply an existing local copy instead of downloading.
 ThrottleStop arena IOCTL 0x8000645c maps <u64 physical><u32 bytes> and returns
 an 8-byte process-local address; 0x80006460 unmaps that address with zero output.
 Driver use and loading are subject to their respective upstream terms.
+
+## NVIDIA driver interfaces
+
+The idle power controller contains an original minimal ABI binding to the system
+NVIDIA driver's NVAPI and optional NVML libraries. No NVIDIA DLL, NVIDIA Inspector
+binary or NvAPIWrapper library is bundled. NVIDIA's driver and API terms apply
+to the installed driver. SetPstateClientLimits is a private driver interface;
+compatibility is not guaranteed across driver versions.
+
+Interface signatures and layout references:
+
+- valleyofdoom/limit-nvpstate, commit 48566577f96e3191abe0fb150908ef0e21932343,
+  `limit-nvpstate/nvidia.cpp` (client limit type 3, P8 limit and P0 reset).
+- Demion/nvapioc, commit 63fc36c688231fa006951c72e99581e53105e604,
+  `Source/main.cpp` (soft/hard client limit definitions).
+- falahati/NvAPIWrapper, commit 2a41eb4d6b1bceff5dbb33a3b5ea70bd582214a7
+  (interface identifiers and dynamic performance state structure layout).

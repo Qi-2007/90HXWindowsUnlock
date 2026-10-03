@@ -4,7 +4,7 @@ param(
     [string]$OutputDirectory
 )
 $ErrorActionPreference='Stop'
-$version='1.1.0'
+$version='1.2.2'
 $expectedDriver='8A0E82640D1E16F7C949E17AB2A7A80F25C125EA0C317440E195DE7368608B40'
 $SignedDriverPath=[IO.Path]::GetFullPath($SignedDriverPath)
 if ((Get-FileHash -LiteralPath $SignedDriverPath).Hash -ne $expectedDriver) { throw 'The signed DMA driver differs from the pinned release input.' }
@@ -14,7 +14,7 @@ if ($signature.Status -ne 'Valid') { throw "DMA signature verification failed: $
 & (Join-Path $PSScriptRoot 'build-gui.ps1')
 $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $testExe=Join-Path $PSScriptRoot 'build\NativeWorkflowTests.exe'
-$testSources=@('ui\NativePnp.cs','ui\DriverService.cs','ui\NativeWorkflow.cs','ui\UnlockSnapshot.cs','ui\CertificateManager.cs','ui\LogSession.cs','ui\TaskManagement.cs','tools\NativeWorkflowTests.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
+$testSources=@('ui\NativePnp.cs','ui\DriverService.cs','ui\NativeWorkflow.cs','ui\UnlockSnapshot.cs','ui\CertificateManager.cs','ui\LogSession.cs','ui\TaskManagement.cs','ui\NvidiaPowerApi.cs','ui\PowerControl.cs','ui\PowerTasks.cs','ui\SharedSynchronization.cs','ui\RuntimeDeployment.cs','tools\NativeWorkflowTests.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
 & $csc /nologo /target:exe /platform:x64 /warnaserror+ "/out:$testExe" /reference:System.Web.Extensions.dll /reference:Microsoft.CSharp.dll $testSources
 if($LASTEXITCODE -ne 0) { throw 'Native workflow tests did not compile.' }
 & $testExe $SignedDriverPath
@@ -50,11 +50,14 @@ foreach ($file in Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse) {
     $hashes[$relative]=(Get-FileHash -LiteralPath $file.FullName).Hash
 }
 $hashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'files.sha256.json') -Encoding UTF8
-@{version=$version;builtUtc=[DateTime]::UtcNow.ToString('o');coreVersion='469dc0c';dmaSha256=$expectedDriver;dmaSigner=$signature.SignerCertificate.Subject;workflow='native-csharp';uac='once-per-launch';unlockTiming='fast-default-with-conservative-option';verificationSamples=1;startupStatusReads=1;autoUnlock='SYSTEM boot + Kernel-Power 107';logs='ProgramData startup-cleanup'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'release.json') -Encoding UTF8
+@{version=$version;builtUtc=[DateTime]::UtcNow.ToString('o');coreVersion='469dc0c';dmaSha256=$expectedDriver;dmaSigner=$signature.SignerCertificate.Subject;workflow='native-csharp';uac='once-per-launch';unlockTiming='fast-default-with-conservative-option';verificationSamples=1;startupStatusReads=1;autoUnlock='SYSTEM boot + Kernel-Power 107; device-readiness without fixed delay';idlePower='opt-in SYSTEM resident NVAPI P8; coordinated unlock pause; GPU/video/application release';logs='ProgramData startup-cleanup; power log capped at 1 MiB'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'release.json') -Encoding UTF8
 $report=Join-Path $PSScriptRoot 'build\release-validation.log'
 $gui=Join-Path $OutputDirectory 'CMP90HXControl.exe'
 $check=Start-Process -FilePath $gui -ArgumentList @('--validate-package',('"'+$report+'"')) -WindowStyle Hidden -Wait -PassThru
 if($check.ExitCode -ne 0) { Get-Content -LiteralPath $report -Tail 15; throw "Distribution validation failed: $($check.ExitCode)" }
+$headlessReport=Join-Path $PSScriptRoot 'build\headless-validation.log'
+$headless=Start-Process -FilePath $gui -ArgumentList @('--validate-headless',('"'+$headlessReport+'"')) -WindowStyle Hidden -Wait -PassThru
+if($headless.ExitCode -ne 0) {Get-Content -LiteralPath $headlessReport;throw 'Headless startup loaded WPF.'}
 $zip=$OutputDirectory+'.zip'
 Compress-Archive -LiteralPath $OutputDirectory -DestinationPath $zip -CompressionLevel Optimal
 $archiveHash=(Get-FileHash -LiteralPath $zip).Hash

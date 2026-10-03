@@ -4,6 +4,7 @@ using System.Threading;
 using System.Diagnostics;
 using System.Security.Principal;
 using System.Windows;
+using System.Threading.Tasks;
 
 namespace CMP90HX.Control
 {
@@ -14,6 +15,8 @@ namespace CMP90HX.Control
         internal static LogSession Session;
         Mutex instance;
         bool ownsInstance;
+        DesktopPresence desktop;
+        IDisposable runtimeLease;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -34,9 +37,9 @@ namespace CMP90HX.Control
                     else throw new ArgumentException("未知参数：" + argument);
                 }
                 if (SnapshotPath != null && PreviewState == null) PreviewState = "running";
-                if (PreviewState != null && PreviewState != "running" && PreviewState != "success" && PreviewState != "failure" && PreviewState != "driver" && PreviewState != "task")
-                    throw new ArgumentException("--preview 支持 running、success、failure、driver、task。");
-                if(automatic && (PreviewState!=null || validationReport!=null || compact)) throw new ArgumentException("自动解锁参数不能与预览或包检查混用。");
+                if (PreviewState != null && PreviewState != "running" && PreviewState != "success" && PreviewState != "failure" && PreviewState != "driver" && PreviewState != "task" && PreviewState != "power")
+                    throw new ArgumentException("--preview 支持 running、success、failure、driver、task、power。");
+                if(automatic && (PreviewState!=null || validationReport!=null || compact)) throw new ArgumentException("后台参数不能与预览或包检查混用。");
                 if (validationReport != null) {
                     // Distribution checks never query devices or load drivers.
                     var paths = new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
@@ -48,8 +51,9 @@ namespace CMP90HX.Control
                     }
                     return;
                 }
+                if(PreviewState==null && !automatic && DesktopPresence.TryActivate()) {Shutdown(0);return;}
                 if (PreviewState == null && !IsAdministrator()) {
-                    if(automatic) throw new InvalidOperationException("自动解锁需由管理员或 SYSTEM 运行。");
+                    if(automatic) throw new InvalidOperationException("后台控制需由管理员或 SYSTEM 运行。");
                     if(elevationAttempted) throw new InvalidOperationException("当前账户未取得管理员权限。");
                     // Elevate once. Every worker inherits this token without another UAC dialog.
                     Process.Start(new ProcessStartInfo {
@@ -65,12 +69,14 @@ namespace CMP90HX.Control
                     try { ownsInstance = instance.WaitOne(0); }
                     catch (AbandonedMutexException) { ownsInstance = true; }
                     if (!ownsInstance) {
-                        MessageBox.Show("控制台已在运行，请使用已打开的窗口。", "CMP 90HX 控制台", MessageBoxButton.OK, MessageBoxImage.Information);
-                        Shutdown(2);
+                        for(int attempt=0;attempt<20;attempt++) {if(DesktopPresence.TryActivate()) {Shutdown(0);return;}System.Threading.Thread.Sleep(100);}
+                        MessageBox.Show("控制台正在启动，请稍后再次打开。", "CMP 90HX 控制台", MessageBoxButton.OK, MessageBoxImage.Information);
+                        Shutdown(0);
                         return;
                     }
                 }
                 if(PreviewState==null) {
+                    runtimeLease=RuntimeDeployment.Lease(AppDomain.CurrentDomain.BaseDirectory);
                     string appRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");
                     DriverService.ProtectDirectory(appRoot);
                     var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
@@ -78,6 +84,7 @@ namespace CMP90HX.Control
                     Session=new LogSession(paths.Logs);
                     string legacy=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CMP90HX","logs");
                     if(Directory.Exists(legacy)) LogSession.CleanPrevious(legacy,null,DateTime.UtcNow);
+                    if(!automatic) Task.Run(()=>TaskManagement.CleanUnusedRuntimes(line=>File.AppendAllText(Path.Combine(Session.DirectoryPath,"runtime-cleanup.log"),line+Environment.NewLine)));
                     if(automatic) {
                         using(var report=new StreamWriter(Path.Combine(Session.DirectoryPath,"auto-unlock.log"),false,System.Text.Encoding.UTF8)) {
                             report.AutoFlush=true;
@@ -89,12 +96,17 @@ namespace CMP90HX.Control
                     }
                 }
                 MainWindow window = new MainWindow();
+                if(PreviewState=="power") {
+                    var power=new PowerWindow(window,new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory),null,true);
+                    MainWindow=power;power.Show();return;
+                }
                 if(PreviewState=="driver" || PreviewState=="task") {
                     var management=new ManagementWindow(window,PreviewState=="task",new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory),null,true);
                     MainWindow=management;management.Show();return;
                 }
                 if (compact) { window.Width = 900; window.Height = 680; }
                 MainWindow = window;
+                if(PreviewState==null) desktop=new DesktopPresence(window);
                 window.Show();
             } catch (Exception error) {
                 if (SnapshotPath != null) File.WriteAllText(SnapshotPath + ".error.txt", error.ToString());
@@ -113,6 +125,8 @@ namespace CMP90HX.Control
 
         protected override void OnExit(ExitEventArgs e)
         {
+            if(desktop!=null) desktop.Dispose();
+            if(runtimeLease!=null) runtimeLease.Dispose();
             if (ownsInstance) instance.ReleaseMutex();
             if (instance != null) instance.Dispose();
             if (Session != null) Session.Dispose();

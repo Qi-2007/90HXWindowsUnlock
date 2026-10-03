@@ -79,6 +79,7 @@ namespace CMP90HX.Control
             output.IsReadOnly=true;output.FontFamily=new FontFamily("Cascadia Mono, Consolas");output.FontSize=12;
             output.Background=new SolidColorBrush(Color.FromRgb(16,26,42));output.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));
             output.Padding=new Thickness(12);output.BorderThickness=new Thickness(0);
+            output.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));
             output.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;output.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
             Grid.SetRow(output,1);logGrid.Children.Add(output);
             Grid.SetRow(logGrid,2);grid.Children.Add(logGrid);
@@ -170,7 +171,7 @@ namespace CMP90HX.Control
                 if(closed) return;
                 if(taskMode) {
                     first.Text="计划任务："+state.Task.Text;
-                    second.Text="触发器：开机后 20 秒；唤醒后 10 秒";
+                    second.Text="触发器：开机和唤醒后立即开始，等待设备就绪";
                     driver.Text="根证书："+(state.Certificates[0] && state.Certificates[1]?"已安装":"未完整安装")+"   ·   DMA 驱动："+state.Driver;
                     install.IsEnabled=!busy;uninstall.IsEnabled=trigger.IsEnabled=!busy && state.Task.Exists;
                 } else {
@@ -188,7 +189,7 @@ namespace CMP90HX.Control
             foreach(var button in buttons) button.IsEnabled=false;
             if(taskMode) {
                 first.Text="计划任务：已安装 · 已启用\n上次运行：2026-10-03 16:20:00\n上次结果：0x00000000";
-                second.Text="触发器：开机后 20 秒；唤醒后 10 秒";
+                second.Text="触发器：开机和唤醒后立即开始，等待设备就绪";
                 driver.Text="根证书：已安装   ·   DMA 驱动：运行中";
                 notice.Text="安装时自动补齐证书和驱动，环境检查通过后注册。";
             } else {

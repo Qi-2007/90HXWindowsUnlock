@@ -14,9 +14,10 @@ namespace CMP90HX.Control
     internal sealed class PowerSettings
     {
         public bool Enabled {get;set;}
-        public int Threshold {get;set;}=15;
-        public int IdleSeconds {get;set;}=10;
-        public string FullSpeedApps {get;set;}="";
+        public int Threshold {get;set;}
+        public int IdleSeconds {get;set;}
+        public string FullSpeedApps {get;set;}
+        public PowerSettings() {Threshold=15;IdleSeconds=10;FullSpeedApps="";}
         internal void Validate()
         {
             if(Threshold<1 || Threshold>100 || IdleSeconds<1 || IdleSeconds>120 || (FullSpeedApps??"").Length>4096)
@@ -30,6 +31,7 @@ namespace CMP90HX.Control
             foreach(var process in Process.GetProcesses()) using(process) {
                 try {if(names.Contains(process.ProcessName,StringComparer.OrdinalIgnoreCase)) return true;}
                 catch(InvalidOperationException) { }
+                catch(System.ComponentModel.Win32Exception) { }
             }
             return false;
         }
@@ -44,6 +46,7 @@ namespace CMP90HX.Control
     }
     internal static class PowerStorage
     {
+        static bool prepared;
         internal static string Root {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","Power");}}
         internal static PowerSettings ReadSettings()
         {
@@ -60,7 +63,7 @@ namespace CMP90HX.Control
         internal static void WriteStatus(PowerStatus status) {Write("status.json",status);}
         static void Write(string name,object data)
         {
-            DriverService.ProtectDirectory(Path.GetDirectoryName(Root));DriverService.ProtectDirectory(Root);
+            if(!prepared) {DriverService.ProtectDirectory(Path.GetDirectoryName(Root));DriverService.ProtectDirectory(Root);prepared=true;}
             string target=Path.Combine(Root,name);
             if(File.Exists(target) && (File.GetAttributes(target)&FileAttributes.ReparsePoint)!=0) throw new IOException("省电文件不能是符号链接。");
             string temporary=Path.Combine(Root,Guid.NewGuid().ToString("N")+".tmp");
@@ -172,6 +175,16 @@ namespace CMP90HX.Control
         [DllImport("powrprof.dll")] static extern uint PowerUnregisterSuspendResumeNotification(IntPtr handle);
         internal static int Run(string session)
         {
+            using(var lifetime=SharedSynchronization.OpenMutex(@"Global\CMP90HX_Power_Monitor")) {
+                bool owned=false;
+                try {
+                    try {owned=lifetime.WaitOne(0);} catch(AbandonedMutexException) {owned=true;}
+                    return owned?RunExclusive(session):0;
+                } finally {if(owned) lifetime.ReleaseMutex();}
+            }
+        }
+        static int RunExclusive(string session)
+        {
             using(var coordination=new PowerCoordination()) {
                 if(coordination.Running.WaitOne(0)) return 0;
                 var prior=PowerStorage.ReadStatus();bool recover=prior!=null && prior.LimitApplied;
@@ -187,15 +200,24 @@ namespace CMP90HX.Control
                     File.AppendAllText(file,DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff")+" "+line+"\r\n",Encoding.UTF8);
                 };
                 coordination.Running.Set();
-                using(var mutex=new Mutex(false,@"Global\CMP90HX_FullTestScript")) {
+                using(var mutex=SharedSynchronization.OpenMutex(SharedSynchronization.HardwareName)) {
                     try {
                         while(true) {
                             bool owned=false;
                             try {
                                 var settings=PowerStorage.ReadSettings();bool pause=coordination.Request.WaitOne(0);
+                                if(!settings.Enabled && api==null && !recover) {
+                                    PowerStorage.WriteStatus(new PowerStatus {Policy="已停用",HeartbeatUtc=DateTime.UtcNow});break;
+                                }
                                 if(!pause) {
                                     try {owned=mutex.WaitOne(0);} catch(AbandonedMutexException) {owned=true;}
                                     if(!owned) {Thread.Sleep(100);continue;}
+                                }
+                                if(pause && api==null && !recover) {
+                                    // No owned limit exists: acknowledge even before NVIDIA is loaded.
+                                    status=new PowerStatus {Policy="已暂停 · 等待解锁完成",HeartbeatUtc=DateTime.UtcNow};
+                                    PowerStorage.WriteStatus(status);coordination.Acknowledged.Set();
+                                    Thread.Sleep(500);continue;
                                 }
                                 if(api==null) {
                                     if(!settings.Enabled && !recover) break;
@@ -226,9 +248,11 @@ namespace CMP90HX.Control
                     } finally {
                         if(notification!=IntPtr.Zero) PowerUnregisterSuspendResumeNotification(notification);
                         GC.KeepAlive(callback);
-                        if(engine!=null) engine.Release();
-                        if(api!=null) api.Dispose();
-                        coordination.Running.Reset();coordination.Acknowledged.Reset();
+                        try {if(engine!=null && engine.Limited) using(var gate=new PowerHardwareGate()) engine.Release();}
+                        finally {
+                            if(api!=null) api.Dispose();
+                            coordination.Running.Reset();coordination.Acknowledged.Reset();
+                        }
                     }
                 }
             }
