@@ -272,7 +272,7 @@
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="计算功能" Style="{StaticResource Caption}" /><TextBlock x:Name="ComputeText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="图形功能" Style="{StaticResource Caption}" /><TextBlock x:Name="GraphicsText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                             </UniformGrid>
-                            <TextBlock x:Name="UnlockReadDetail" Text="启动后自动读取一次。功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock x:Name="UnlockReadDetail" Text="驱动已安装时，启动后自动读取一次。功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
                             <Border Height="1" Background="#E3E8EF" Margin="0,0,0,12" />
                             <DockPanel>
                                 <TextBlock Text="执行进度" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />

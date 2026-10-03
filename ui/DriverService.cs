@@ -96,7 +96,11 @@ namespace CMP90HX.Control
             acl.AddAccessRule(new FileSystemAccessRule(new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid,null),FileSystemRights.ReadAndExecute,InheritanceFlags.ContainerInherit|InheritanceFlags.ObjectInherit,PropagationFlags.None,AccessControlType.Allow));
             new DirectoryInfo(path).SetAccessControl(acl);
         }
-        internal static void EnsureRunning(string source,Action<string> log)
+        internal static bool SameDriverImage(string path,string expectedHash)
+        {
+            return File.Exists(path) && String.Equals(RuntimePaths.Hash(path),expectedHash,StringComparison.OrdinalIgnoreCase);
+        }
+        internal static void EnsureRunning(string source,Action<string> log,bool installIfMissing=true)
         {
             RuntimePaths.RequireHash(source,RuntimePaths.DmaHash);
             SignatureTrust.Verify(source);
@@ -115,6 +119,7 @@ namespace CMP90HX.Control
                 IntPtr service=OpenService(manager,Name,0x17);
                 if(service==IntPtr.Zero) {
                     if(Marshal.GetLastWin32Error()!=1060) throw Error("OpenService");
+                    if(!installIfMissing) throw new IOException("DMA_DRIVER_NOT_INSTALLED: 请在驱动管理中安装驱动后再读取解锁状态。");
                     service=CreateService(manager,Name,"CMP 90HX DMA",0x17,1,3,1,@"\??\"+driver,null,IntPtr.Zero,null,null,null);
                     if(service==IntPtr.Zero) throw Error("CreateService CMP90HXDma");
                     log("DMA_DRIVER_INSTALLED path="+driver);
@@ -125,9 +130,16 @@ namespace CMP90HX.Control
                     string installed=NormalizeDriverPath(configured);
                     Status state=Read(service);
                     if(!String.Equals(installed,driver,StringComparison.OrdinalIgnoreCase)) {
-                        if(state.State!=1) throw new IOException("DMA_DRIVER_UPDATE_REQUIRES_REBOOT: the existing driver is active. Reboot before switching to CMP90HXDmaSigned.sys.");
-                        if(!ChangeServiceConfig(service,uint.MaxValue,3,uint.MaxValue,@"\??\"+driver,null,IntPtr.Zero,null,null,null,null)) throw Error("ChangeServiceConfig CMP90HXDma");
-                        log("DMA_DRIVER_PATH_UPDATED (previous driver stopped)");
+                        if(state.State!=1) {
+                            if(!SameDriverImage(installed,RuntimePaths.DmaHash)) {
+                                log("DMA_DRIVER_IMAGE_MISMATCH installed="+installed+" expectedSha256="+RuntimePaths.DmaHash);
+                                throw new IOException("DMA_DRIVER_UPDATE_REQUIRES_REBOOT: the active service image differs from this package. Reboot before switching drivers.");
+                            }
+                            log("DMA_DRIVER_SAME_IMAGE_REUSED: SHA256 matches; service path retained.");
+                        } else {
+                            if(!ChangeServiceConfig(service,uint.MaxValue,3,uint.MaxValue,@"\??\"+driver,null,IntPtr.Zero,null,null,null,null)) throw Error("ChangeServiceConfig CMP90HXDma");
+                            log("DMA_DRIVER_PATH_UPDATED (previous driver stopped)");
+                        }
                     }
                     if(state.State!=4 && !StartService(service,0,IntPtr.Zero)) {
                         int error=Marshal.GetLastWin32Error();

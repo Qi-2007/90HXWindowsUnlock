@@ -105,8 +105,9 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 哈希配置在 `ui/NativeWorkflow.cs` 的 `RuntimePaths.Gen2Hash` 与 `DmaHash`。
 签名后可单独运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\update-release-hashes.ps1`，
 脚本确认工作进程构建自测通过、驱动签名有效后，更新两项哈希，复制驱动到 GUI 使用的
-`build\dma-driver\CMP90HXDmaSigned.sys` 并重建 GUI。默认读取已就地签名的
-`build\dma-driver\CMP90HXDma.sys`；该文件不存在时使用 `CMP90HXDmaSigned.sys`。
+`build\dma-driver\CMP90HXDmaSigned.sys` 并重建 GUI。默认保留并读取上次选定的
+`build\dma-driver\CMP90HXDmaSigned.sys`；该文件不存在时使用 `CMP90HXDma.sys`。
+重新编译并签名新驱动后，须显式传 `-SignedDriverPath` 选择新文件，避免误用旧构建。
 自定义签名文件可传 `-SignedDriverPath '完整路径\驱动.sys'`。
 `build-release.ps1` 自动调用同一脚本，并验证发布包内两个文件与配置哈希一致；
 无效签名会在更新配置前报错。脚本不重新编译驱动、加载驱动或修改系统签名策略。

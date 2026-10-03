@@ -26,6 +26,7 @@ namespace CMP90HX.Control
         internal uint Code;
         internal int Exit,PostFailureArena,Disables,Enables,DriverCalls,TargetCalls,SnapshotCalls;
         internal bool Crash,DisableFails,EnableFails,BadVerify,BadStatus,ConservativeArgument,MissingDependencies,BaselineLocked;
+        internal bool MissingDriver,LastInstallIfMissing;
         internal readonly List<string> Commands=new List<string>();
         int arenaCalls;
         public GpuDevice Target() { TargetCalls++; return new GpuDevice {InstanceId="TEST_90HX",BusAddress=512,Bdf="02:00.0",Problem=Code,Name="Fake"}; }
@@ -36,7 +37,8 @@ namespace CMP90HX.Control
         }
         public void WaitDisabled(string id) { if(Code!=22) throw new IOException("mock not disabled"); }
         public void Delay(int ms) { }
-        public void EnsureDriver() { DriverCalls++; }
+        public bool DriverInstalled() { return !MissingDriver; }
+        public void EnsureDriver(bool installIfMissing=true) { DriverCalls++; LastInstallIfMissing=installIfMissing; }
         public void CheckEnvironmentDependencies() { if(MissingDependencies) throw new IOException("mock missing certificate/driver"); }
         internal static string Json(bool bad)
         {
@@ -82,6 +84,17 @@ namespace CMP90HX.Control
                 Console.Write(new JavaScriptSerializer().Serialize(args.Skip(1).ToArray())); return 0;
             }
             try {
+                string imageDir=Path.Combine(Path.GetTempPath(),"CMP90HX-image-test-"+Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(imageDir);
+                try {
+                    string image=Path.Combine(imageDir,"installed.sys"),copy=Path.Combine(imageDir,"package.sys");
+                    File.WriteAllText(image,"same driver image");File.Copy(image,copy);
+                    string expected=RuntimePaths.Hash(copy);
+                    Require(DriverService.SameDriverImage(image,expected),"identical driver content at a different path can be reused");
+                    File.WriteAllText(image,"different driver image");
+                    Require(!DriverService.SameDriverImage(image,expected) && !DriverService.SameDriverImage(Path.Combine(imageDir,"missing.sys"),expected),
+                        "different or missing service images are not treated as the package driver");
+                } finally {Directory.Delete(imageDir,true);}
                 TestSynchronizationAndCleanup();
                 TestPower();
                 var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory); List<string> log;
@@ -106,6 +119,11 @@ namespace CMP90HX.Control
                 Require(code!=0 && !log.Any(s=>s.StartsWith("FULL_UNLOCK_VERIFIED_AFTER")),"lost overrides after NVIDIA reattach fail verification");
                 var status=new FakePlatform();code=Run(paths,status,"Status",out log);
                 Require(code==0 && status.DriverCalls==1 && status.Disables==0 && status.Enables==0 && status.Commands.SequenceEqual(new[]{"snapshot"}) && log.Contains("UNLOCK_STATUS_VERIFIED"),"combined status ensures unified driver and reads once without PnP change");
+                Require(!status.LastInstallIfMissing,"status can start an installed driver but cannot install a missing service");
+                var noDriver=new FakePlatform {MissingDriver=true};code=Run(paths,noDriver,"Status",out log);
+                Require(code==0 && noDriver.DriverCalls==0 && noDriver.TargetCalls==0 && noDriver.Commands.Count==0 &&
+                    noDriver.Disables==0 && noDriver.Enables==0 && log.Any(s=>s.StartsWith("UNLOCK_STATUS_DRIVER_NOT_INSTALLED")),
+                    "status with no driver skips all hardware work and reports a missing-driver notice");
                 var partiallyLocked=new FakePlatform{BadStatus=true};code=Run(paths,partiallyLocked,"Status",out log);
                 Require(code==0 && partiallyLocked.SnapshotCalls==1 && log.Contains("UNLOCK_STATUS_NOT_FULLY_VERIFIED") && !log.Contains("UNLOCK_STATUS_VERIFIED"),"status displays a locked value without claiming verification passed");
                 var manual=new FakePlatform();code=Run(paths,manual,"Verify",out log);

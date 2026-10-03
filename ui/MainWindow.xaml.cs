@@ -232,7 +232,12 @@ namespace CMP90HX.Control
                 PresentResult(mode, label, result);
                 if (mode == "Status" || mode == "Environment" || mode == "Unlock" || mode == "Verify") {
                     string snapshot = Path.Combine(runDirectory, "unlock-status.json");
-                    if (result == 0 && File.Exists(snapshot)) DisplayUnlockSnapshot(snapshot);
+                    if (mode=="Status" && (runText.ToString().Contains("UNLOCK_STATUS_DRIVER_NOT_INSTALLED") || runText.ToString().Contains("DMA_DRIVER_NOT_INSTALLED"))) {
+                        LinkText.Text = ComputeText.Text = GraphicsText.Text = "未读取";
+                        UnlockReadDetail.Text = "尚未安装 CMP90HXDma 驱动，无法读取解锁状态。请先在“驱动管理”中安装驱动。";
+                        UnlockReadDetail.ToolTip = null;
+                    }
+                    else if (result == 0 && File.Exists(snapshot)) DisplayUnlockSnapshot(snapshot);
                     else {
                         LinkText.Text = ComputeText.Text = GraphicsText.Text = "读取失败";
                         UnlockReadDetail.Text = "本次未取得有效快照，请查看日志。";
@@ -261,6 +266,13 @@ namespace CMP90HX.Control
         {
             OperationNotice.Visibility = Visibility.Collapsed;
             string output = runText.ToString();
+            if(mode=="Status" && (output.Contains("UNLOCK_STATUS_DRIVER_NOT_INSTALLED") || output.Contains("DMA_DRIVER_NOT_INSTALLED"))) {
+                OperationTitle.Text = "解锁状态未读取";
+                OperationTitle.Foreground = (Brush)new BrushConverter().ConvertFromString("#667085");
+                OperationDetail.Text = "尚未安装 CMP90HXDma 驱动，请先在“驱动管理”中安装驱动。";
+                FooterText.Text = "解锁状态 · 未安装驱动";
+                return;
+            }
             bool disabledOnly = output.Contains("FULL_UNLOCK_VERIFIED_WHILE_DISABLED_ONLY");
             bool verified = output.Contains("FULL_UNLOCK_VERIFIED_AFTER_NVIDIA_REATTACH");
             bool confirmed = mode == "Install" ? output.Contains("DMA_DRIVER_READY") : mode == "Status" ? output.Contains("UNLOCK_STATUS_CAPTURED") :

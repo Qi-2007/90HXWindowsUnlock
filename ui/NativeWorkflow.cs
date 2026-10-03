@@ -71,7 +71,8 @@ namespace CMP90HX.Control
         void Enable(string id,bool enabled);
         void WaitDisabled(string id);
         void Delay(int milliseconds);
-        void EnsureDriver();
+        bool DriverInstalled();
+        void EnsureDriver(bool installIfMissing=true);
         void CheckEnvironmentDependencies();
         int Run(params string[] args);
     }
@@ -84,7 +85,8 @@ namespace CMP90HX.Control
         public void Enable(string id,bool enabled) { NativePnp.Enable(id,enabled); }
         public void WaitDisabled(string id) { NativePnp.WaitDisabled(id); }
         public void Delay(int milliseconds) { Thread.Sleep(milliseconds); }
-        public void EnsureDriver() { CertificateManager.RequireInstalled(); DriverService.EnsureRunning(paths.DmaDriver,log); }
+        public bool DriverInstalled() { return DriverService.Installed(); }
+        public void EnsureDriver(bool installIfMissing=true) { CertificateManager.RequireInstalled(); DriverService.EnsureRunning(paths.DmaDriver,log,installIfMissing); }
         public void CheckEnvironmentDependencies()
         {
             bool[] installed=CertificateManager.Installed();
@@ -185,6 +187,10 @@ namespace CMP90HX.Control
                     if(!owned) throw new IOException("另一项工作流正在运行，请等待完成。");
                     if(!new[]{"Check","Status","Install","Preflight","Environment","AutoUnlock","Unlock","Verify"}.Contains(mode)) throw new ArgumentException("Unknown workflow.");
                     log("NATIVE_WORKFLOW_BEGIN mode="+mode);
+                    if(mode=="Status" && !platform.DriverInstalled()) {
+                        log("UNLOCK_STATUS_DRIVER_NOT_INSTALLED: 尚未安装 CMP90HXDma，无法读取解锁状态。请先在驱动管理中安装驱动。");
+                        return 0;
+                    }
                     bool automatic=mode=="AutoUnlock",environment=mode=="Environment";
                     if(mode=="Unlock" || automatic) log("GUI_UNLOCK_CORE=469dc0c timing="+(conservative?"conservative":"fast"));
                     if(environment || automatic) platform.CheckEnvironmentDependencies();
@@ -203,7 +209,7 @@ namespace CMP90HX.Control
                     GpuDevice target=automatic?WaitTarget():platform.Target(); log("Target: "+target.InstanceId+" / BDF="+target.Bdf);
                     if(platform is WindowsWorkflowPlatform) powerPause=PowerCoordination.Pause();
                     if(mode=="Status") {
-                        platform.EnsureDriver();
+                        platform.EnsureDriver(false);
                         var state=Snapshot(target,"unlock-status.json");
                         bool verified=false;
                         if(platform.Problem(target.InstanceId)==0) {
@@ -213,7 +219,7 @@ namespace CMP90HX.Control
                         log("UNLOCK_STATUS_CAPTURED"); return 0;
                     }
                     if(mode=="Verify") {
-                        platform.EnsureDriver();
+                        platform.EnsureDriver(false);
                         Verify(target,1,1); return 0;
                     }
                     platform.EnsureDriver(); Require(Arena(),"DMA backend validation");

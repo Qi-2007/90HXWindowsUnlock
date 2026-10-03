@@ -4,11 +4,12 @@ param(
     [switch]$SkipGuiBuild
 )
 $ErrorActionPreference='Stop'
-# Prefer the actual build artifact, which may have been signed in place.
+# Preserve the signed artifact selected for the previous release. A newly
+# signed build can be selected explicitly with -SignedDriverPath.
 if (!$SignedDriverPath) {
-    $SignedDriverPath=Join-Path $PSScriptRoot 'build\dma-driver\CMP90HXDma.sys'
+    $SignedDriverPath=Join-Path $PSScriptRoot 'build\dma-driver\CMP90HXDmaSigned.sys'
     if (!(Test-Path -LiteralPath $SignedDriverPath -PathType Leaf)) {
-        $SignedDriverPath=Join-Path $PSScriptRoot 'build\dma-driver\CMP90HXDmaSigned.sys'
+        $SignedDriverPath=Join-Path $PSScriptRoot 'build\dma-driver\CMP90HXDma.sys'
     }
 }
 $SignedDriverPath=[IO.Path]::GetFullPath($SignedDriverPath)
