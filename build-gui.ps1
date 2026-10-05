@@ -1,20 +1,16 @@
-[CmdletBinding()]
-param([string]$MSBuild)
+﻿[CmdletBinding()]
+param([string]$MSBuild,[switch]$Clean,[string]$CertificateDirectory,[switch]$NonInteractive)
 $ErrorActionPreference='Stop'
-if (!$MSBuild) {
-    $vswhere=Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
-    if (!(Test-Path -LiteralPath $vswhere)) { throw 'VS Installer/vswhere is missing.' }
-    $found=@(& $vswhere -latest -products '*' -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe')
-    if (!$found.Count) { throw 'MSBuild is unavailable.' }
-    $MSBuild=$found[0]
-}
-$framework=Join-Path ${env:ProgramFiles(x86)} 'Reference Assemblies\Microsoft\Framework\.NETFramework\v4.8.1'
-if (!(Test-Path -LiteralPath (Join-Path $framework 'PresentationFramework.dll'))) {
-    throw '.NET Framework 4.8.1 Developer Pack is required.'
-}
-& $MSBuild (Join-Path $PSScriptRoot 'ui\CMP90HXControl.csproj') /m /p:Configuration=Release /p:Platform=x64 /verbosity:minimal
+. (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
+$MSBuild=Resolve-BuildMSBuild $MSBuild
+Assert-BuildFramework -Gui
+$certificate=Write-CertificatePolicy $CertificateDirectory
+$CertificateDirectory=Split-Path -Parent $certificate.Path
+$target=if($Clean) {'/t:Rebuild'} else {'/t:Build'}
+& $MSBuild (Join-Path $PSScriptRoot 'ui\CMP90HXUnlockConsole.csproj') $target /m /p:Configuration=Release /p:Platform=x64 "/p:CertificateDirectory=$CertificateDirectory" /verbosity:minimal | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "GUI build failed: $LASTEXITCODE" }
 $exe=Join-Path $PSScriptRoot 'build\CMP90HXControl.exe'
 if (!(Test-Path -LiteralPath $exe)) { throw 'GUI executable was not created.' }
+Wait-GuiOptionalSigning $exe -NonInteractive:$NonInteractive
 Get-FileHash -Algorithm SHA256 $exe
 Write-Host "GUI ready: $exe"

@@ -29,6 +29,9 @@
     <Optimize>true</Optimize>
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
+  </PropertyGroup>
   <ItemGroup>
     <None Include="app.manifest" />
     <None Include="App.config" />
@@ -43,15 +46,26 @@
     <Reference Include="WindowsBase" />
   </ItemGroup>
   <ItemGroup>
-    <ApplicationDefinition Include="App.xaml"><Generator>MSBuild:Compile</Generator><SubType>Designer</SubType></ApplicationDefinition>
-    <Page Include="MainWindow.xaml"><Generator>MSBuild:Compile</Generator><SubType>Designer</SubType></Page>
-    <Compile Include="App.xaml.cs"><DependentUpon>App.xaml</DependentUpon></Compile>
-    <Compile Include="MainWindow.xaml.cs"><DependentUpon>MainWindow.xaml</DependentUpon></Compile>
+    <ApplicationDefinition Include="App.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </ApplicationDefinition>
+    <Page Include="MainWindow.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Compile Include="App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="UnlockSnapshot.cs" />
     <Compile Include="NativePnp.cs" />
     <Compile Include="DriverService.cs" />
     <Compile Include="NativeWorkflow.cs" />
     <Compile Include="CertificateManager.cs" />
+    <Compile Include="..\build\CertificatePolicy.cs" />
     <Compile Include="LogSession.cs" />
     <Compile Include="TaskManagement.cs" />
     <Compile Include="ManagementWindow.cs" />
@@ -62,8 +76,15 @@
     <Compile Include="SharedSynchronization.cs" />
     <Compile Include="DesktopPresence.cs" />
     <Compile Include="StartupProgram.cs" />
+    <Compile Include="StartupSettings.cs" />
     <Compile Include="RuntimeDeployment.cs" />
     <Compile Include="AssemblyInfo.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <Content Include="icon.ico" />
+  </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <Target Name="GenerateCertificatePolicy" BeforeTargets="PrepareForBuild">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\tools\generate-certificate-policy.ps1&quot; -CertificateDirectory &quot;$(CertificateDirectory)&quot;" />
+  </Target>
 </Project>

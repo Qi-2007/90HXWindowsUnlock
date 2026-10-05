@@ -1,4 +1,4 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Position=0)][ValidateSet('Status','Preflight','Unlock','Verify','GpuDmaTest','GpuDmaInitTest')][string]$Mode='Preflight',
     [switch]$ValidateOnly,
@@ -9,12 +9,13 @@ param(
     [string]$LogDirectory
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 if ($Mode -ne 'Status' -and $DmaBackend -eq 'kernel' -and !$PhysicalDmaExperiment) { throw 'Kernel DMA requires -PhysicalDmaExperiment; this driver does not supply IOMMU mappings.' }
 $dmaArgs=@('--dma-backend',$DmaBackend)
 if ($PhysicalDmaExperiment) { $dmaArgs+='--physical-dma-experiment' }
 $root=$PSScriptRoot
 $project=$root
-$exe=Join-Path $root 'build\CMP90HXGen2.exe'
+$exe=Join-Path $root 'build\CMP90HXUnlocker.exe'
 $drivers=Join-Path $root 'drivers'
 $coreVersion=if ($LegacyCore) { '380bdf3' } else { '469dc0c' }
 $core=Join-Path $project "vendor\nvpermissive-dist-$coreVersion\obj\nvpermissive-core.o"

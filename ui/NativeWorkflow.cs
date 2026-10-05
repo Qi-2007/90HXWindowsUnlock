@@ -12,22 +12,23 @@ namespace CMP90HX.Control
 {
     internal sealed class RuntimePaths
     {
-        internal const string Version="1.2.2";
+        internal const string Version="1.2.4";
         // Updated by update-release-hashes.ps1 before the GUI is compiled.
-        internal const string Gen2Hash="EB488D45658AA548971C2D165673E9A2E79778D283AD127C49AAE7C274D0DC83";
-        internal const string DmaHash="09887C79ECA9192A8C4355146932D8824AF9BA8DBE20B4B4E595DDF057EDD01E";
+        internal const string Gen2Hash="58C770D6330D42DF56EC84F986B873FD75C6FBB3F8A10650A810627CA5240CF3";
+        internal const string DmaHash="96C6EEA49B73CC03B8B9420A928F72BBC038AC817C36D9227D01480E69AC37DD";
         internal const string CoreHash="B533B7B245ED606C151CA336B9A6BACEBE935E3EC478246E879C668A4DD98A6A";
         internal readonly string Root, Worker, Drivers, DmaDriver, Core, Logs, Certificates;
-        internal readonly bool Packaged;
+        internal readonly bool Packaged, Background;
         internal RuntimePaths(string directory)
         {
             directory=Path.GetFullPath(directory);
-            Packaged=File.Exists(Path.Combine(directory,"runtime","CMP90HXGen2.exe"));
+            Packaged=File.Exists(Path.Combine(directory,"runtime","CMP90HXUnlocker.exe"));
             Root=Packaged?directory:Path.GetFullPath(Path.Combine(directory,".."));
-            Worker=Packaged?Path.Combine(Root,"runtime","CMP90HXGen2.exe"):Path.Combine(Root,"build","CMP90HXGen2.exe");
+            Background=Packaged && RuntimeDeployment.IsBackgroundDirectory(Root);
+            Worker=Packaged?Path.Combine(Root,"runtime","CMP90HXUnlocker.exe"):Path.Combine(Root,"build","CMP90HXUnlocker.exe");
             Drivers=Path.Combine(Root,"drivers");
-            DmaDriver=Packaged?Path.Combine(Root,"driver","CMP90HXDmaSigned.sys"):Path.Combine(Root,"build","dma-driver","CMP90HXDmaSigned.sys");
-            Certificates=Packaged?Path.Combine(Root,"driver","cert"):Path.Combine(Root,"build","dma-driver","cert");
+            DmaDriver=Background?DriverService.StoredDriver:Packaged?Path.Combine(Root,"driver","CMP90HXDma.sys"):Path.Combine(Root,"build","dma-driver","CMP90HXDma.sys");
+            Certificates=Packaged?Path.Combine(Root,"driver","cert"):CertificatePolicy.SourceDirectory;
             Core=Packaged?Path.Combine(Root,"core","nvpermissive-core.o"):Path.Combine(Root,"vendor","nvpermissive-dist-469dc0c","obj","nvpermissive-core.o");
             Logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","Logs");
         }
@@ -48,18 +49,19 @@ namespace CMP90HX.Control
             RequireHash(Worker,Gen2Hash);
             if(Packaged) {
                 var entries=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(Root,"files.sha256.json")));
-                foreach(string relative in new[]{"runtime/CMP90HXGen2.exe","runtime/CMP90HXGen2.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
+                foreach(string relative in new[]{"runtime/CMP90HXUnlocker.exe","runtime/CMP90HXUnlocker.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
                     if(entries==null || !entries.ContainsKey(relative)) throw new IOException("运行包清单缺少 "+relative);
                     RequireHash(Path.Combine(Root,relative.Replace('/',Path.DirectorySeparatorChar)),entries[relative]);
                 }
             } else {
-                string stamp=Path.Combine(Root,"build","CMP90HXGen2.validated.sha256");
+                string stamp=Path.Combine(Root,"build","CMP90HXUnlocker.validated.sha256");
                 RequireHash(Worker,File.ReadAllText(stamp).Trim());
             }
             if(requireCore) RequireHash(Core,CoreHash);
             if(requireDma) {
                 if(DmaHash.Length!=64) throw new IOException("驱动哈希尚未更新，请签名后运行 update-release-hashes.ps1。");
-                CertificateManager.ValidateFiles(this); RequireHash(DmaDriver,DmaHash); SignatureTrust.Verify(DmaDriver);
+                if(Background) CertificateManager.RequireInstalled(); else CertificateManager.ValidateFiles(this);
+                RequireHash(DmaDriver,DmaHash); SignatureTrust.Verify(DmaDriver);
             }
         }
     }
@@ -90,7 +92,7 @@ namespace CMP90HX.Control
         public void CheckEnvironmentDependencies()
         {
             bool[] installed=CertificateManager.Installed();
-            for(int i=0;i<2;i++) log("CERTIFICATE_STATUS "+CertificateManager.Thumbprints[i]+" installed="+installed[i]);
+            for(int i=0;i<installed.Length;i++) log("CERTIFICATE_STATUS "+CertificateManager.Thumbprints[i]+" installed="+installed[i]);
             log("DMA_DRIVER_STATUS "+DriverService.CurrentState());
             CertificateManager.RequireInstalled(); DriverService.RequireInstalled();
         }

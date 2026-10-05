@@ -19,7 +19,7 @@ namespace CMP90HX.Control
         internal static IEnumerable<string> ActiveImages()
         {
             var files=new List<string>();
-            foreach(string name in new[]{"CMP90HXControl","CMP90HXGen2"})
+            foreach(string name in new[]{"CMP90HXControl","CMP90HXUnlocker"})
                 foreach(var process in Process.GetProcessesByName(name)) using(process) {
                     IntPtr handle=OpenProcess(0x1000,false,process.Id);
                     if(handle==IntPtr.Zero) {
@@ -39,6 +39,11 @@ namespace CMP90HX.Control
             // The private deployment root and version/hash naming also identify partial
             // copies left by an interrupted deployment or cleanup.
             return Regex.IsMatch(Path.GetFileName(path),@"^\d+\.\d+\.\d+-[0-9a-fA-F]{16}$");
+        }
+        internal static bool IsBackgroundDirectory(string directory)
+        {
+            string path=Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar);
+            return String.Equals(Path.GetDirectoryName(path),Root,StringComparison.OrdinalIgnoreCase) && Managed(path);
         }
         internal static IDisposable Lease(string directory)
         {

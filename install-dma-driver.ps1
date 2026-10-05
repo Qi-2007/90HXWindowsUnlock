@@ -1,15 +1,16 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory=$true)][string]$DriverPath,
     [switch]$UnsignedSmokeTest
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 $admin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 if (!$admin) { throw 'Run this script in an elevated PowerShell.' }
 $path=[IO.Path]::GetFullPath($DriverPath)
 if (!(Test-Path -LiteralPath $path -PathType Leaf)) { throw 'Driver file is missing.' }
 if ($path -notmatch '^[A-Za-z]:\\' -or [IO.Path]::GetExtension($path) -ne '.sys') { throw 'Use a local .sys file.' }
-$exe=Join-Path $PSScriptRoot 'build\CMP90HXGen2.exe'
+$exe=Join-Path $PSScriptRoot 'build\CMP90HXUnlocker.exe'
 if ($UnsignedSmokeTest -and !(Test-Path -LiteralPath $exe -PathType Leaf)) { throw 'Smoke test executable is missing. Run build.ps1 first.' }
 # Never replace an existing service or alter signing / Secure Boot policy.
 if (Get-Service -Name CMP90HXDma -ErrorAction SilentlyContinue) { throw 'CMP90HXDma service already exists; inspect it manually. It is not replaced.' }

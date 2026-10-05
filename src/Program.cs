@@ -349,19 +349,19 @@ namespace CMP90HX
         static int Usage()
         {
             Console.WriteLine("CMP90HX Windows Gen2 wake recovery proof of concept");
-            Console.WriteLine("  CMP90HXGen2.exe snapshot --out baseline.json [--drivers DIR] [--bdf 01:00.0]");
-            Console.WriteLine("  CMP90HXGen2.exe bridge-probe --drivers DIR --bdf 02:00.0 [--log FILE] (read-only ECAM/HAL comparison)");
-            Console.WriteLine("  CMP90HXGen2.exe recover --baseline baseline.json --out result.json [--drivers DIR] [--bdf 01:00.0] [--tls-only] [--log FILE]");
-            Console.WriteLine("  CMP90HXGen2.exe self-test");
+            Console.WriteLine("  CMP90HXUnlocker.exe snapshot --out baseline.json [--drivers DIR] [--bdf 01:00.0]");
+            Console.WriteLine("  CMP90HXUnlocker.exe bridge-probe --drivers DIR --bdf 02:00.0 [--log FILE] (read-only ECAM/HAL comparison)");
+            Console.WriteLine("  CMP90HXUnlocker.exe recover --baseline baseline.json --out result.json [--drivers DIR] [--bdf 01:00.0] [--tls-only] [--log FILE]");
+            Console.WriteLine("  CMP90HXUnlocker.exe self-test");
             Console.WriteLine("  DMA commands require --physical-dma-experiment and preinstalled CMP90HXDma driver (kernel backend only).");
-            Console.WriteLine("  CMP90HXGen2.exe arena-info [--log FILE]");
+            Console.WriteLine("  CMP90HXUnlocker.exe arena-info [--log FILE]");
             Console.WriteLine("  CMP90HXDma protocol v2 must be installed/started for hardware commands; --drivers is a compatibility option only.");
-            Console.WriteLine("  CMP90HXGen2.exe arena-reserve-test [--log FILE] (no GPU access)");
-            Console.WriteLine("  CMP90HXGen2.exe dma-test --drivers DIR [--log FILE]");
-            Console.WriteLine("  CMP90HXGen2.exe gpu-dma-test --drivers DIR --bdf 02:00.0 [--log FILE] (already disabled Code 22 required)");
-            Console.WriteLine("  CMP90HXGen2.exe gpu-dma-init-test --core PINNED_OBJECT --drivers DIR --bdf 02:00.0 [--log FILE] (explicit GSP engine reset; Code 22 required)");
-            Console.WriteLine("  CMP90HXGen2.exe core-test --core PINNED_OBJECT");
-            Console.WriteLine("  CMP90HXGen2.exe full-unlock --core PINNED_OBJECT --drivers DIR --bdf 02:00.0 --out full-unlock.json [--conservative] [--log FILE] (fast timing by default; PnP Code 22 required)");
+            Console.WriteLine("  CMP90HXUnlocker.exe arena-reserve-test [--log FILE] (no GPU access)");
+            Console.WriteLine("  CMP90HXUnlocker.exe dma-test --drivers DIR [--log FILE]");
+            Console.WriteLine("  CMP90HXUnlocker.exe gpu-dma-test --drivers DIR --bdf 02:00.0 [--log FILE] (already disabled Code 22 required)");
+            Console.WriteLine("  CMP90HXUnlocker.exe gpu-dma-init-test --core PINNED_OBJECT --drivers DIR --bdf 02:00.0 [--log FILE] (explicit GSP engine reset; Code 22 required)");
+            Console.WriteLine("  CMP90HXUnlocker.exe core-test --core PINNED_OBJECT");
+            Console.WriteLine("  CMP90HXUnlocker.exe full-unlock --core PINNED_OBJECT --drivers DIR --bdf 02:00.0 --out full-unlock.json [--conservative] [--log FILE] (fast timing by default; PnP Code 22 required)");
             return 1;
         }
     }

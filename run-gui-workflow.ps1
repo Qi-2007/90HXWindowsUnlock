@@ -1,9 +1,10 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidateSet('Status','Check','Preflight','Unlock','Verify')][string]$Mode,
     [Guid]$RunId=[Guid]::NewGuid()
 )
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 [Console]::OutputEncoding=New-Object System.Text.UTF8Encoding($false)
 $root=$PSScriptRoot
 $logs=Join-Path $root ('logs\gui\'+$RunId.ToString('N'))

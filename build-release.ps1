@@ -1,23 +1,49 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param(
-    [string]$SignedDriverPath,
-    [string]$OutputDirectory
+    [string]$DriverPath,
+    [string]$OutputDirectory,
+    [string]$MSBuild,
+    [string]$DriverMSBuild,
+    [string]$SdkVersion,
+    [string]$CertificatePath,
+    [Security.SecureString]$CertificatePassword,
+    [string]$TimestampUrl,
+    [string]$SignTool,
+    [switch]$ChooseCertificate,
+    [switch]$NonInteractive,
+    [string]$CertificateDirectory,
+    [switch]$PackageOnly
 )
 $ErrorActionPreference='Stop'
-$version='1.2.2'
-$releaseInputs=& (Join-Path $PSScriptRoot 'update-release-hashes.ps1') -SignedDriverPath $SignedDriverPath -SkipGuiBuild
+. (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
+if (!$PackageOnly) {
+    # Optional external Gen2 signing must finish before the caller hash is generated.
+    & (Join-Path $PSScriptRoot 'build.ps1') -MSBuild $MSBuild -Clean | Out-Host
+    Wait-Gen2OptionalSigning -NonInteractive:$NonInteractive
+    & (Join-Path $PSScriptRoot 'build-dma-driver.ps1') -MSBuild $DriverMSBuild -SdkVersion $SdkVersion -Clean | Out-Host
+    # Capture the newly compiled body BEFORE waiting (also supports in-place signing).
+    $unsignedHash=Get-BuildPayloadHash (Join-Path $PSScriptRoot 'build\dma-driver\CMP90HXDma.sys')
+    $DriverPath=Wait-BuildSignedDriver $unsignedHash $DriverPath -NonInteractive:$NonInteractive
+}
+$releaseInputs=& (Join-Path $PSScriptRoot 'update-release-hashes.ps1') -DriverPath $DriverPath -SkipGuiBuild -SkipWorkerBuild
 $expectedDriver=$releaseInputs.DmaHash
 $expectedWorker=$releaseInputs.Gen2Hash
-$SignedDriverPath=$releaseInputs.SignedDriverPath
-$signature=Get-AuthenticodeSignature -LiteralPath $SignedDriverPath
+$DriverPath=$releaseInputs.DriverPath
+$signature=Get-AuthenticodeSignature -LiteralPath $DriverPath
 if ($signature.Status -ne 'Valid') { throw "DMA signature verification failed: $($signature.Status)" }
-& (Join-Path $PSScriptRoot 'build-gui.ps1')
+$certificate=Write-CertificatePolicy $CertificateDirectory
+& (Join-Path $PSScriptRoot 'build-gui.ps1') -MSBuild $MSBuild -CertificateDirectory (Split-Path -Parent $certificate.Path) -NonInteractive:$NonInteractive | Out-Host
+$expectedGui=(Get-FileHash -LiteralPath (Join-Path $PSScriptRoot 'build\CMP90HXControl.exe') -Algorithm SHA256).Hash
+$versionMatch=[regex]::Match([IO.File]::ReadAllText((Join-Path $PSScriptRoot 'ui\NativeWorkflow.cs')),'internal const string Version\s*=\s*"([0-9.]+)"')
+if (!$versionMatch.Success) { throw 'RuntimePaths.Version is missing.' }
+$version=$versionMatch.Groups[1].Value
 $csc=Join-Path $env:WINDIR 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
 $testExe=Join-Path $PSScriptRoot 'build\NativeWorkflowTests.exe'
 $testSources=@('ui\NativePnp.cs','ui\DriverService.cs','ui\NativeWorkflow.cs','ui\UnlockSnapshot.cs','ui\CertificateManager.cs','ui\LogSession.cs','ui\TaskManagement.cs','ui\NvidiaPowerApi.cs','ui\PowerControl.cs','ui\PowerTasks.cs','ui\SharedSynchronization.cs','ui\RuntimeDeployment.cs','tools\NativeWorkflowTests.cs') | ForEach-Object { Join-Path $PSScriptRoot $_ }
-& $csc /nologo /target:exe /platform:x64 /warnaserror+ "/out:$testExe" /reference:System.Web.Extensions.dll /reference:Microsoft.CSharp.dll $testSources
+$testSources+=Join-Path $PSScriptRoot 'build\CertificatePolicy.cs'
+& $csc /nologo /target:exe /platform:x64 /warnaserror+ "/out:$testExe" /reference:System.Web.Extensions.dll /reference:Microsoft.CSharp.dll $testSources | Out-Host
 if($LASTEXITCODE -ne 0) { throw 'Native workflow tests did not compile.' }
-& $testExe $SignedDriverPath
+& $testExe $DriverPath | Out-Host
 if($LASTEXITCODE -ne 0) { throw 'Native workflow tests failed.' }
 if (!$OutputDirectory) { $OutputDirectory=Join-Path $PSScriptRoot ('dist\CMP90HX-Control-'+$version+'-'+(Get-Date -Format 'yyyyMMdd-HHmmss')) }
 $OutputDirectory=[IO.Path]::GetFullPath($OutputDirectory)
@@ -28,14 +54,12 @@ $guideName=(-join [char[]]@(0x4f7f,0x7528,0x8bf4,0x660e))+'.md'
 $files=[ordered]@{
     'CMP90HXControl.exe'='build\CMP90HXControl.exe'
     'CMP90HXControl.exe.config'='build\CMP90HXControl.exe.config'
-    'runtime\CMP90HXGen2.exe'='build\CMP90HXGen2.exe'
-    'runtime\CMP90HXGen2.exe.config'='build\CMP90HXGen2.exe.config'
+    'runtime\CMP90HXUnlocker.exe'='build\CMP90HXUnlocker.exe'
+    'runtime\CMP90HXUnlocker.exe.config'='build\CMP90HXUnlocker.exe.config'
     'core\nvpermissive-core.o'='vendor\nvpermissive-dist-469dc0c\obj\nvpermissive-core.o'
     'LICENSE'='LICENSE'
     'THIRD_PARTY_NOTICES.md'='THIRD_PARTY_NOTICES.md'
     $guideName='docs\RELEASE_GUIDE_ZH.md'
-    'driver\cert\Pikachu Test CA RSA.cer'='build\dma-driver\cert\Pikachu Test CA RSA.cer'
-    'driver\cert\Pikachu Time Sub CA.cer'='build\dma-driver\cert\Pikachu Time Sub CA.cer'
 }
 foreach ($entry in $files.GetEnumerator()) {
     $destination=Join-Path $OutputDirectory $entry.Key
@@ -47,19 +71,26 @@ foreach ($entry in $files.GetEnumerator()) {
         Copy-Item -LiteralPath $source -Destination $destination
     }
 }
+$certificateDestination=Join-Path $OutputDirectory ('driver\cert\'+$certificate.FileName)
+New-Item -ItemType Directory -Path (Split-Path -Parent $certificateDestination) -Force | Out-Null
+Copy-Item -LiteralPath $certificate.Path -Destination $certificateDestination
+if ((Get-FileHash -LiteralPath $certificateDestination -Algorithm SHA256).Hash -ne $certificate.Hash) { throw 'Certificate changed during packaging; rebuild the GUI and retry.' }
 New-Item -ItemType Directory -Path (Join-Path $OutputDirectory 'driver') -Force | Out-Null
-Copy-Item -LiteralPath $SignedDriverPath -Destination (Join-Path $OutputDirectory 'driver\CMP90HXDmaSigned.sys')
-if ((Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'driver\CMP90HXDmaSigned.sys')).Hash -ne $expectedDriver -or
-    (Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'runtime\CMP90HXGen2.exe')).Hash -ne $expectedWorker) {
-    throw 'Packaged worker/driver differs from the pinned release inputs; retry the build.'
+Copy-Item -LiteralPath $DriverPath -Destination (Join-Path $OutputDirectory 'driver\CMP90HXDma.sys')
+if ((Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'driver\CMP90HXDma.sys')).Hash -ne $expectedDriver -or
+    (Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'CMP90HXControl.exe')).Hash -ne $expectedGui -or
+    (Get-FileHash -LiteralPath (Join-Path $OutputDirectory 'runtime\CMP90HXUnlocker.exe')).Hash -ne $expectedWorker) {
+    throw 'Packaged GUI/worker/driver differs from the pinned release inputs; retry the build.'
 }
+$workerSignature=Get-AuthenticodeSignature -LiteralPath (Join-Path $OutputDirectory 'runtime\CMP90HXUnlocker.exe')
+Assert-DriverCallerPolicy (Join-Path $OutputDirectory 'driver\CMP90HXDma.sys') $expectedWorker
 $hashes=[ordered]@{}
 foreach ($file in Get-ChildItem -LiteralPath $OutputDirectory -File -Recurse) {
     $relative=$file.FullName.Substring($OutputDirectory.Length+1).Replace('\','/')
     $hashes[$relative]=(Get-FileHash -LiteralPath $file.FullName).Hash
 }
 $hashes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'files.sha256.json') -Encoding UTF8
-@{version=$version;builtUtc=[DateTime]::UtcNow.ToString('o');coreVersion='469dc0c';gen2Sha256=$expectedWorker;dmaSha256=$expectedDriver;dmaSigner=$signature.SignerCertificate.Subject;workflow='native-csharp';uac='once-per-launch';unlockTiming='fast-default-with-conservative-option';verificationSamples=1;startupStatusReads=1;autoUnlock='SYSTEM boot + Kernel-Power 107; device-readiness without fixed delay';idlePower='opt-in SYSTEM resident NVAPI P8; coordinated unlock pause; GPU/video/application release';logs='ProgramData startup-cleanup; power log capped at 1 MiB'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'release.json') -Encoding UTF8
+@{version=$version;builtUtc=[DateTime]::UtcNow.ToString('o');coreVersion='469dc0c';gen2Sha256=$expectedWorker;gen2Signer=$workerSignature.SignerCertificate.Subject;dmaSha256=$expectedDriver;dmaSigner=$signature.SignerCertificate.Subject;workflow='native-csharp';uac='once-per-launch';unlockTiming='fast-default-with-conservative-option';verificationSamples=1;startupStatusReads=1;autoUnlock='SYSTEM boot + Kernel-Power 107; device-readiness without fixed delay';idlePower='opt-in SYSTEM resident NVAPI P8; coordinated unlock pause; GPU/video/application release';logs='ProgramData startup-cleanup; power log capped at 1 MiB'} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $OutputDirectory 'release.json') -Encoding UTF8
 $report=Join-Path $PSScriptRoot 'build\release-validation.log'
 $gui=Join-Path $OutputDirectory 'CMP90HXControl.exe'
 try {

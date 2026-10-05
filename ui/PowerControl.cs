@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -47,26 +48,75 @@ namespace CMP90HX.Control
     internal static class PowerStorage
     {
         static bool prepared;
-        internal static string Root {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","Power");}}
+        internal static string Root {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");}}
         internal static PowerSettings ReadSettings()
         {
-            string file=Path.Combine(Root,"settings.json");if(!File.Exists(file)) return new PowerSettings();
-            var value=new JavaScriptSerializer().Deserialize<PowerSettings>(File.ReadAllText(file));
+            using(var deployment=new DeploymentLock()) {
+                var value=ReadSettings(Root);
+                if(!File.Exists(Path.Combine(Root,"settings.json")) && File.Exists(Path.Combine(Root,"Power","settings.json"))) {
+                    Prepare();WriteSettings(Root,value);
+                }
+                return value;
+            }
+        }
+        internal static PowerSettings ReadSettings(string root)
+        {
+            var json=new JavaScriptSerializer();string file=Path.Combine(root,"settings.json");PowerSettings value;
+            if(File.Exists(file)) {
+                var sections=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(file));object power;
+                if(sections==null) throw new IOException("配置文件无效。");
+                value=sections.TryGetValue("Power",out power)?json.ConvertToType<PowerSettings>(power):new PowerSettings();
+            } else {
+                file=Path.Combine(root,"Power","settings.json");
+                value=File.Exists(file)?json.Deserialize<PowerSettings>(File.ReadAllText(file)):new PowerSettings();
+            }
             if(value==null) throw new IOException("省电配置无效。");value.Validate();return value;
         }
         internal static PowerStatus ReadStatus()
+        {return ReadStatus(Root);}
+        internal static PowerStatus ReadStatus(string root)
         {
-            string file=Path.Combine(Root,"status.json");
+            string file=Path.Combine(root,"State","power-status.json");
+            if(!File.Exists(file)) file=Path.Combine(root,"Power","status.json");
             return File.Exists(file)?new JavaScriptSerializer().Deserialize<PowerStatus>(File.ReadAllText(file)):null;
         }
-        internal static void WriteSettings(PowerSettings settings) {settings.Validate();Write("settings.json",settings);}
-        internal static void WriteStatus(PowerStatus status) {Write("status.json",status);}
-        static void Write(string name,object data)
+        internal static void WriteSettings(PowerSettings settings)
+        {using(var deployment=new DeploymentLock()) {Prepare();WriteSettings(Root,settings);}}
+        internal static void WriteSettings(string root,PowerSettings settings)
         {
-            if(!prepared) {DriverService.ProtectDirectory(Path.GetDirectoryName(Root));DriverService.ProtectDirectory(Root);prepared=true;}
-            string target=Path.Combine(Root,name);
+            settings.Validate();string file=Path.Combine(root,"settings.json");var json=new JavaScriptSerializer();
+            var sections=File.Exists(file)?json.Deserialize<Dictionary<string,object>>(File.ReadAllText(file)):new Dictionary<string,object>();
+            if(sections==null) throw new IOException("配置文件无效。");
+            // Preserve other feature sections when only the power settings change.
+            sections["Power"]=settings;Write(root,"settings.json",sections);
+            string legacy=Path.Combine(root,"Power","settings.json");
+            if(File.Exists(legacy)) {
+                if((File.GetAttributes(legacy)&FileAttributes.ReparsePoint)!=0) throw new IOException("旧设置不能是符号链接。");
+                File.Delete(legacy);
+            }
+            CleanLegacyDirectory(root);
+        }
+        internal static void WriteStatus(PowerStatus status)
+        {Prepare();WriteStatus(Root,status);}
+        internal static void WriteStatus(string root,PowerStatus status)
+        {
+            Write(Path.Combine(root,"State"),"power-status.json",status);
+            string legacy=Path.Combine(root,"Power","status.json");
+            if(File.Exists(legacy) && (File.GetAttributes(legacy)&FileAttributes.ReparsePoint)==0) File.Delete(legacy);
+            CleanLegacyDirectory(root);
+        }
+        static void CleanLegacyDirectory(string root)
+        {
+            string directory=Path.Combine(root,"Power");
+            if(Directory.Exists(directory) && (File.GetAttributes(directory)&FileAttributes.ReparsePoint)==0 && Directory.GetFileSystemEntries(directory).Length==0) Directory.Delete(directory);
+        }
+        static void Prepare()
+        {if(!prepared) {DriverService.ProtectDirectory(Root);DriverService.ProtectDirectory(Path.Combine(Root,"State"));prepared=true;}}
+        static void Write(string directory,string name,object data)
+        {
+            string target=Path.Combine(directory,name);
             if(File.Exists(target) && (File.GetAttributes(target)&FileAttributes.ReparsePoint)!=0) throw new IOException("省电文件不能是符号链接。");
-            string temporary=Path.Combine(Root,Guid.NewGuid().ToString("N")+".tmp");
+            string temporary=Path.Combine(directory,Guid.NewGuid().ToString("N")+".tmp");
             try {
                 File.WriteAllText(temporary,new JavaScriptSerializer().Serialize(data),Encoding.UTF8);
                 if(File.Exists(target)) File.Replace(temporary,target,null);else File.Move(temporary,target);

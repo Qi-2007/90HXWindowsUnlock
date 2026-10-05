@@ -20,7 +20,7 @@ namespace CMP90HX
         {
             try {
                 handle=Native.CreateFile(@"\\.\CMP90HXDma",0xc0000000,0,IntPtr.Zero,3,0,IntPtr.Zero);
-                if(handle.IsInvalid) throw Native.Failure(Marshal.GetLastWin32Error(),"Open CMP90HXDma (install/start the signed experimental driver first)");
+                if(handle.IsInvalid) throw Native.Failure(Marshal.GetLastWin32Error(),"Open CMP90HXDma (administrator access and matching driver/Gen2 release required; start the driver before this process, then restart Gen2; reboot after driver updates)");
                 byte[] info=Call(InfoCode,40);
                 ValidateInfo(info,false);
                 if(map) MapArena();

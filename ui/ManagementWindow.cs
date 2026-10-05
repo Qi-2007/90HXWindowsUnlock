@@ -44,7 +44,7 @@ namespace CMP90HX.Control
             grid.Children.Add(heading);
             var body=new StackPanel();
             body.Children.Add(Status(first));
-            body.Children.Add(Status(second));
+            if(taskMode) body.Children.Add(Status(second));
             body.Children.Add(Status(driver));
             notice.TextWrapping=TextWrapping.Wrap;notice.Foreground=Brushes.SlateGray;notice.FontSize=12;notice.Margin=new Thickness(0,8,0,12);
             notice.Text=taskMode?"安装时自动补齐证书和驱动，环境检查通过后注册。后台已解锁则跳过。":"证书安装到 LocalMachine / Root。已加载的驱动卸载后，重启生效。";
@@ -172,11 +172,10 @@ namespace CMP90HX.Control
                 if(taskMode) {
                     first.Text="计划任务："+state.Task.Text;
                     second.Text="触发器：开机和唤醒后立即开始，等待设备就绪";
-                    driver.Text="根证书："+(state.Certificates[0] && state.Certificates[1]?"已安装":"未完整安装")+"   ·   DMA 驱动："+state.Driver;
-                    install.IsEnabled=!busy;uninstall.IsEnabled=trigger.IsEnabled=!busy && state.Task.Exists;
+                    driver.Text="根证书："+(state.Certificates[0]?"已安装":"未安装")+"   ·   DMA 驱动："+state.Driver;
+                    install.IsEnabled=!busy && state.Task.CanRead;uninstall.IsEnabled=trigger.IsEnabled=!busy && state.Task.CanRead && state.Task.Exists;
                 } else {
-                    first.Text="Pikachu Test CA RSA："+(state.Certificates[0]?"已安装":"未安装")+"\n"+CertificateManager.Thumbprints[0];
-                    second.Text="Pikachu Time Sub CA："+(state.Certificates[1]?"已安装":"未安装")+"\n"+CertificateManager.Thumbprints[1];
+                    first.Text=CertificateManager.DisplayName+"："+(state.Certificates[0]?"已安装":"未安装")+"\n"+CertificateManager.Thumbprints[0];
                     driver.Text="DMA 驱动："+state.Driver;
                     foreach(var button in buttons) button.IsEnabled=!busy;
                 }
@@ -193,8 +192,7 @@ namespace CMP90HX.Control
                 driver.Text="根证书：已安装   ·   DMA 驱动：运行中";
                 notice.Text="安装时自动补齐证书和驱动，环境检查通过后注册。";
             } else {
-                first.Text="Pikachu Test CA RSA：已安装\n"+CertificateManager.Thumbprints[0];
-                second.Text="Pikachu Time Sub CA：未安装\n"+CertificateManager.Thumbprints[1];
+                first.Text=CertificateManager.DisplayName+"：已安装\n"+CertificateManager.Thumbprints[0];
                 driver.Text="DMA 驱动：已安装 · 操作时启动";
                 notice.Text="证书安装到 LocalMachine / Root。已加载的驱动卸载后，重启生效。";
             }

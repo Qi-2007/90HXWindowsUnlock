@@ -1,4 +1,5 @@
 ﻿$ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'ConsoleEncoding.ps1')
 Add-Type -TypeDefinition (Get-Content -LiteralPath (Join-Path $PSScriptRoot '..\ui\UnlockSnapshot.cs') -Raw -Encoding UTF8) -ReferencedAssemblies System.Web.Extensions,System.Core
 $json='{"Schema":1,"DeviceId":571281630,"Gpu":{"Status":258},"Bridge":{"Status":258},"Registers":[{"Offset":8534044,"Value":2290649224},{"Offset":8534048,"Value":8},{"Offset":8534064,"Value":4}]}'
 $sample=[CMP90HX.Control.UnlockSnapshot]::Parse($json)

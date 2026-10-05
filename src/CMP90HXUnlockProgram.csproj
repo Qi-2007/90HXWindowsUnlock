@@ -4,11 +4,16 @@
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
     <ProjectGuid>{F1BD50C4-9C99-46CC-BB57-4C1A63DAE185}</ProjectGuid>
-    <OutputType>Exe</OutputType><AssemblyName>CMP90HXGen2</AssemblyName>
-    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion><PlatformTarget>x64</PlatformTarget>
-    <OutputPath>..\build\</OutputPath><IntermediateOutputPath>..\build\csharp-obj\</IntermediateOutputPath>
-    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow><Optimize>true</Optimize>
-    <WarningLevel>4</WarningLevel><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>CMP90HXUnlocker</AssemblyName>
+    <TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget>
+    <OutputPath>..\build\</OutputPath>
+    <IntermediateOutputPath>..\build\csharp-obj\</IntermediateOutputPath>
+    <CheckForOverflowUnderflow>true</CheckForOverflowUnderflow>
+    <Optimize>true</Optimize>
+    <WarningLevel>4</WarningLevel>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)' == 'Debug|x64'">
     <PlatformTarget>x64</PlatformTarget>
@@ -24,10 +29,13 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
     <None Include="App.config" />
-    <Reference Include="System" /><Reference Include="System.Core" />
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
     <Reference Include="System.Xml" />
-    <Reference Include="System.Management" /><Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.Management" />
+    <Reference Include="System.Runtime.Serialization" />
     <Compile Include="*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />

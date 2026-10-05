@@ -1,6 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$SourceDirectory)
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $destination = Join-Path $root 'drivers'
 New-Item -ItemType Directory -Path $destination -Force | Out-Null

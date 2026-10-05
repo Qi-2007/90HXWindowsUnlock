@@ -100,20 +100,67 @@ namespace CMP90HX.Control
         {
             return File.Exists(path) && String.Equals(RuntimePaths.Hash(path),expectedHash,StringComparison.OrdinalIgnoreCase);
         }
+        internal static string StoreRoot {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","DriverStore");}}
+        internal static string StoredDriver {get {return Path.Combine(StoreRoot,RuntimePaths.DmaHash,"CMP90HXDma.sys");}}
+        internal static void CleanStore(string root,string keep,string active,Action<string> log)
+        {
+            root=Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
+            if(!Directory.Exists(root)) return;
+            if((File.GetAttributes(root)&FileAttributes.ReparsePoint)!=0) throw new IOException("拒绝清理链接目录。");
+            foreach(string directory in Directory.GetDirectories(root)) {
+                string path=Path.GetFullPath(directory),prefix=path+Path.DirectorySeparatorChar;
+                if(!String.Equals(Path.GetDirectoryName(path),root,StringComparison.OrdinalIgnoreCase) ||
+                    !System.Text.RegularExpressions.Regex.IsMatch(Path.GetFileName(path),@"^[0-9a-fA-F]{64}$") ||
+                    (File.GetAttributes(path)&FileAttributes.ReparsePoint)!=0 ||
+                    Path.GetFullPath(keep).StartsWith(prefix,StringComparison.OrdinalIgnoreCase) ||
+                    !String.IsNullOrEmpty(active) && Path.GetFullPath(active).StartsWith(prefix,StringComparison.OrdinalIgnoreCase)) continue;
+                // Only remove recognized, flat driver-version directories. Never follow links.
+                var files=Directory.GetFiles(path);
+                if(Directory.GetDirectories(path).Length!=0 || Array.Exists(files,file=>
+                    (File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0 ||
+                    !(String.Equals(Path.GetFileName(file),"CMP90HXDma.sys",StringComparison.OrdinalIgnoreCase) ||
+                      String.Equals(Path.GetFileName(file),"CMP90HXDmaSigned.sys",StringComparison.OrdinalIgnoreCase)))) continue;
+                try {foreach(string file in files) File.Delete(file);Directory.Delete(path);log("DMA_DRIVER_VERSION_REMOVED "+path);}
+                catch(IOException) {log("DMA_DRIVER_VERSION_RETAINED: 文件仍被使用，重启后再清理 "+path);}
+                catch(UnauthorizedAccessException) {log("DMA_DRIVER_VERSION_RETAINED: 当前无法清理 "+path);}
+            }
+        }
         internal static void EnsureRunning(string source,Action<string> log,bool installIfMissing=true)
+        {
+            using(var deployment=new DeploymentLock()) EnsureRunningLocked(source,log,installIfMissing);
+        }
+        static void EnsureRunningLocked(string source,Action<string> log,bool installIfMissing)
         {
             RuntimePaths.RequireHash(source,RuntimePaths.DmaHash);
             SignatureTrust.Verify(source);
+            // Inspect the loaded image before writing another version into DriverStore.
+            IntPtr probeManager=OpenSCManager(null,null,1);if(probeManager==IntPtr.Zero) throw Error("OpenSCManager");
+            string active=null;
+            try {
+                IntPtr probe=OpenService(probeManager,Name,5);
+                if(probe==IntPtr.Zero) {
+                    if(Marshal.GetLastWin32Error()!=1060) throw Error("OpenService");
+                    if(!installIfMissing) throw new IOException("DMA_DRIVER_NOT_INSTALLED: 请先安装驱动。");
+                } else try {
+                    string configured;if(ReadConfig(probe,out configured).Type!=1) throw new IOException("同名服务不是内核驱动。");
+                    if(Read(probe).State!=1) {
+                        active=NormalizeDriverPath(configured);
+                        if(!SameDriverImage(active,RuntimePaths.DmaHash))
+                            throw new IOException("DMA_DRIVER_UPDATE_REQUIRES_REBOOT: 当前加载的驱动与发布包不同，请重启后更新。");
+                    }
+                } finally {CloseServiceHandle(probe);}
+            } finally {CloseServiceHandle(probeManager);}
             string appRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");
             ProtectDirectory(appRoot);
             string storeRoot=Path.Combine(appRoot,"DriverStore");
             ProtectDirectory(storeRoot);
             string store=Path.Combine(storeRoot,RuntimePaths.DmaHash); ProtectDirectory(store);
-            string driver=Path.Combine(store,"CMP90HXDmaSigned.sys");
+            string driver=Path.Combine(store,"CMP90HXDma.sys");
             if(File.Exists(driver) && (File.GetAttributes(driver)&FileAttributes.ReparsePoint)!=0) throw new IOException("Driver file must not be a symbolic link.");
             if(!File.Exists(driver)) File.Copy(source,driver,false);
             RuntimePaths.RequireHash(driver,RuntimePaths.DmaHash);
             SignatureTrust.Verify(driver);
+            CleanStore(storeRoot,driver,active,log);
             IntPtr manager=OpenSCManager(null,null,3); if(manager==IntPtr.Zero) throw Error("OpenSCManager");
             try {
                 IntPtr service=OpenService(manager,Name,0x17);

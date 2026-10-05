@@ -275,7 +275,7 @@
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="计算功能" Style="{StaticResource Caption}" /><TextBlock x:Name="ComputeText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="图形功能" Style="{StaticResource Caption}" /><TextBlock x:Name="GraphicsText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                             </UniformGrid>
-                            <TextBlock x:Name="UnlockReadDetail" Text="驱动已安装时，启动后自动读取一次。功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock x:Name="UnlockReadDetail" Text="启动后默认自动读取一次；功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
                             <Border Height="1" Background="#E3E8EF" Margin="0,0,0,12" />
                             <DockPanel>
                                 <TextBlock Text="执行进度" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
@@ -322,8 +322,36 @@
 
         <Border Grid.Row="2" Background="White" BorderBrush="#E3E8EF" BorderThickness="0,1,0,0" Padding="30,11">
             <DockPanel>
-                <TextBlock Text="免费工具 · 禁止倒卖  |  驱动/GUI开发：Qi | 解锁核心：日向 | 解锁有风险，后果自负 | 遇到问题请在GitHub Issue反馈 | 觉得好用请给个Star" Foreground="{StaticResource MutedBrush}" FontSize="12" ToolTip="项目仓库：https://github.com/Qi-2007/90HXWindowsUnlock" Cursor="Hand" MouseLeftButtonUp="OpenRepo"/>
-                <TextBlock x:Name="FooterText" Text="就绪" Foreground="{StaticResource MutedBrush}" FontSize="12" DockPanel.Dock="Right" HorizontalAlignment="Right" />
+                <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="12"
+               TextWrapping="Wrap">
+        <Run Text="免费工具 · 禁止倒卖  |  驱动/GUI开发：" />
+        <Hyperlink NavigateUri="https://github.com/Qi-2007"
+                   RequestNavigate="Hyperlink_RequestNavigate"
+                   Foreground="#4EA1FF" TextDecorations="{x:Null}">
+            <Run Text="Qi" />
+        </Hyperlink>
+        <Run Text="| 解锁核心：" />
+        <Hyperlink NavigateUri="https://github.com/GreenDamTan"
+                   RequestNavigate="Hyperlink_RequestNavigate"
+                   Foreground="#4EA1FF" TextDecorations="{x:Null}">
+            <Run Text="GreenDamTan" />
+        </Hyperlink>
+        <Run Text="| 解锁有风险，后果自负 | 遇到问题请在" />
+        <Hyperlink NavigateUri="https://github.com/Qi-2007/90HXWindowsUnlock/issues"
+                   RequestNavigate="Hyperlink_RequestNavigate"
+                   Foreground="#4EA1FF" TextDecorations="{x:Null}">
+            <Run Text="GitHub Issue" />
+        </Hyperlink>
+        <Run Text="反馈 | 觉得好用请给个" />
+        <Hyperlink NavigateUri="https://github.com/Qi-2007/90HXWindowsUnlock"
+                   RequestNavigate="Hyperlink_RequestNavigate"
+                   Foreground="#4EA1FF" TextDecorations="{x:Null}">
+            <Run Text="Star" />
+        </Hyperlink>
+                </TextBlock>
+
+                <TextBlock x:Name="FooterText" Text="就绪" Foreground="{StaticResource MutedBrush}"
+               FontSize="12" DockPanel.Dock="Right" HorizontalAlignment="Right" />
             </DockPanel>
         </Border>
         <!-- Keep the watermark above all content without intercepting input. -->

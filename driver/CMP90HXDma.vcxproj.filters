@@ -8,18 +8,32 @@
     <ClCompile Include="src\driver.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\caller_auth.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\hardware_scope.h"><Filter>Header Files</Filter></ClInclude>
-    <ClInclude Include="src\hardware.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="include\hardware_scope.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hardware.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\caller_auth.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
     <ClInclude Include="include\protocol.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\arena_state.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="resource.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Directory.Build.props" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
   </ItemGroup>
 </Project>

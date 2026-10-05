@@ -13,6 +13,7 @@ namespace CMP90HX.Control
     internal sealed class TaskStatus
     {
         internal bool Exists;
+        internal bool CanRead=true;
         internal string Text;
     }
     internal static class EnvironmentSetup
@@ -149,7 +150,7 @@ namespace CMP90HX.Control
         }
         internal static TaskStatus Query(string name=Name)
         {
-            return Scheduler<TaskStatus>(root=> {
+            return QueryStatus(()=>Scheduler<TaskStatus>(root=> {
                 object task=Find(root,name);
                 if(task==null) return new TaskStatus {Text="未安装",Exists=false};
                 try {
@@ -160,12 +161,25 @@ namespace CMP90HX.Control
                     string time=last.Year>2000?last.ToString("yyyy-MM-dd HH:mm:ss"):"尚未运行";
                     return new TaskStatus {Exists=true,Text=summary+"\n上次运行："+time+"\n上次结果：0x"+unchecked((uint)result).ToString("X8")};
                 } finally { Release(task); }
-            });
+            }));
+        }
+        internal static TaskStatus QueryStatus(Func<TaskStatus> query)
+        {
+            try { return query(); }
+            catch(UnauthorizedAccessException) { return TaskAccessDenied(); }
+            catch(COMException error) {
+                if(error.ErrorCode!=unchecked((int)0x80070005)) throw;
+                return TaskAccessDenied();
+            }
+        }
+        static TaskStatus TaskAccessDenied()
+        {
+            return new TaskStatus {CanRead=false,Text="无权读取计划任务状态（0x80070005）；请以管理员身份操作。"};
         }
         internal static void Register(RuntimePaths paths,Action<string> log)
         {
             using(var changes=new DeploymentLock()) {
-            string executable=Deploy(paths);
+            string executable=Deploy(paths,log);
             Scheduler<int>(root=> {
                 object previous=Find(root),registered=null;
                 try {
@@ -208,7 +222,7 @@ namespace CMP90HX.Control
         internal static void RegisterPower(RuntimePaths paths,Action<string> log)
         {
             using(var changes=new DeploymentLock()) {
-            string executable=Deploy(paths);
+            string executable=Deploy(paths,log);
             Scheduler<int>(root=> {
                 object previous=Find(root,PowerName),registered=null;
                 try {
@@ -285,9 +299,10 @@ namespace CMP90HX.Control
                 } finally {Release(action);Release(actions);Release(definition);Release(task);}
             });
         }
-        static string Deploy(RuntimePaths paths)
+        static string Deploy(RuntimePaths paths,Action<string> log)
         {
             paths.Validate(true,true); CertificateManager.RequireInstalled();
+            DriverService.EnsureRunning(paths.DmaDriver,log);
             string appRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");
             DriverService.ProtectDirectory(appRoot);
             string root=Path.Combine(appRoot,"AutoUnlock"); DriverService.ProtectDirectory(root);
@@ -296,10 +311,8 @@ namespace CMP90HX.Control
             DriverService.ProtectDirectory(destination);
             var inputs=new Dictionary<string,string> {
                 {"CMP90HXControl.exe",sourceGui},{"CMP90HXControl.exe.config",sourceGui+".config"},
-                {"runtime/CMP90HXGen2.exe",paths.Worker},{"runtime/CMP90HXGen2.exe.config",paths.Worker+".config"},{"core/nvpermissive-core.o",paths.Core},
-                {"driver/CMP90HXDmaSigned.sys",paths.DmaDriver}
+                {"runtime/CMP90HXUnlocker.exe",paths.Worker},{"runtime/CMP90HXUnlocker.exe.config",paths.Worker+".config"},{"core/nvpermissive-core.o",paths.Core}
             };
-            foreach(string name in CertificateManager.Names) inputs.Add("driver/cert/"+name,Path.Combine(paths.Certificates,name));
             var hashes=new Dictionary<string,string>();
             foreach(var file in inputs) {
                 string target=Path.Combine(destination,file.Key.Replace('/',Path.DirectorySeparatorChar));

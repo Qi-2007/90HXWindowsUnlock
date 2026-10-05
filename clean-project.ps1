@@ -1,6 +1,7 @@
-[CmdletBinding(SupportsShouldProcess=$true)]
+﻿[CmdletBinding(SupportsShouldProcess=$true)]
 param()
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 $root=[IO.Path]::GetFullPath($PSScriptRoot).TrimEnd('\')
 $targets=New-Object 'System.Collections.Generic.List[string]'
 function Add-Target([string]$Relative) {
@@ -21,7 +22,7 @@ foreach($relative in @('.vs','build\csharp-obj','build\gui-obj','build\dma-drive
 }
 # Remove the old fix output only after preserving an identical canonical driver.
 $fixDriver=Join-Path $root 'build\dma-driver-command-fix\CMP90HXDma.sys'
-$signedDriver=Join-Path $root 'build\dma-driver\CMP90HXDmaSigned.sys'
+$signedDriver=Join-Path $root 'build\dma-driver\CMP90HXDma.sys'
 if((Test-Path -LiteralPath $fixDriver) -and (Test-Path -LiteralPath $signedDriver)) {
     if((Get-ContentHash $fixDriver) -eq (Get-ContentHash $signedDriver)) {
         Add-Target 'build\dma-driver-command-fix'

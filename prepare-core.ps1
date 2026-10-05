@@ -1,6 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([string]$EfiPath,[string]$LegacyCorePath,[string]$Python='python')
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 if (!$EfiPath -and !$LegacyCorePath) { throw 'Provide -EfiPath and/or -LegacyCorePath.' }
 if ($EfiPath) {
     $managed=Join-Path $PSScriptRoot 'vendor\nvpermissive-dist-469dc0c\obj\nvpermissive-core.o'

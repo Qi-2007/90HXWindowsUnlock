@@ -96,6 +96,7 @@ namespace CMP90HX.Control
                         "different or missing service images are not treated as the package driver");
                 } finally {Directory.Delete(imageDir,true);}
                 TestSynchronizationAndCleanup();
+                TestStorage();
                 TestPower();
                 var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory); List<string> log;
                 var good=new FakePlatform(); int code=Run(paths,good,"Unlock",out log);
@@ -168,6 +169,13 @@ namespace CMP90HX.Control
                 TaskManagement.ValidateCleanupDefinition();
                 Require(true,"Windows Task Scheduler accepts the generated definition without registering a task");
                 Console.WriteLine("READ_ONLY_TASK "+TaskManagement.Query().Text);
+                var deniedTask=TaskManagement.QueryStatus(()=>{throw new UnauthorizedAccessException();});
+                Require(!deniedTask.CanRead && deniedTask.Text.Contains("0x80070005"),"task access denial remains an explicit unknown status instead of failing publication");
+                deniedTask=TaskManagement.QueryStatus(()=>{throw new System.Runtime.InteropServices.COMException("denied",unchecked((int)0x80070005));});
+                Require(!deniedTask.CanRead,"COM task access denial is handled without granting mutation rights");
+                bool unexpectedTaskError=false;
+                try {TaskManagement.QueryStatus(()=>{throw new IOException("unexpected");});} catch(IOException) {unexpectedTaskError=true;}
+                Require(unexpectedTaskError,"task errors other than access denial are not hidden");
                 CertificateManager.ValidateFiles(paths);
                 Require(true,"bundled certificate hashes and thumbprints match pinned inputs");
                 string logRoot=Path.Combine(Path.GetTempPath(),"CMP90HX-log-tests",Guid.NewGuid().ToString("N"));
@@ -197,6 +205,38 @@ namespace CMP90HX.Control
                 }
                 Console.WriteLine("NATIVE_WORKFLOW_TESTS_PASSED count="+count); return 0;
             } catch(Exception error) { Console.Error.WriteLine(error);return 1; }
+        }
+        static void TestStorage()
+        {
+            string root=Path.Combine(Path.GetTempPath(),"CMP90HX-storage-test-"+Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path.Combine(root,"Power"));
+            try {
+                File.WriteAllText(Path.Combine(root,"Power","status.json"),"{\"LimitApplied\":true,\"Policy\":\"recover\"}");
+                var status=PowerStorage.ReadStatus(root);
+                Require(status.LimitApplied,"legacy state retains P8 ownership for crash recovery");
+                File.WriteAllText(Path.Combine(root,"Power","settings.json"),"{\"Enabled\":true,\"Threshold\":27,\"IdleSeconds\":12}");
+                var settings=PowerStorage.ReadSettings(root);
+                Require(settings.Enabled && settings.Threshold==27 && settings.IdleSeconds==12,"legacy power settings are read for migration");
+                PowerStorage.WriteSettings(root,settings);
+                Require(File.Exists(Path.Combine(root,"settings.json")) && !File.Exists(Path.Combine(root,"Power","settings.json")),"settings migrate to the application root");
+                string file=Path.Combine(root,"settings.json");
+                var sections=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(File.ReadAllText(file));
+                sections["FutureFeature"]=new Dictionary<string,object>{{"Value",42}};
+                File.WriteAllText(file,new JavaScriptSerializer().Serialize(sections));
+                settings.Threshold=33;PowerStorage.WriteSettings(root,settings);
+                sections=new JavaScriptSerializer().Deserialize<Dictionary<string,object>>(File.ReadAllText(file));
+                Require(sections.ContainsKey("FutureFeature") && PowerStorage.ReadSettings(root).Threshold==33,"saving power settings preserves other feature sections");
+                Directory.CreateDirectory(Path.Combine(root,"State"));PowerStorage.WriteStatus(root,status);
+                Require(PowerStorage.ReadStatus(root).LimitApplied && File.Exists(Path.Combine(root,"State","power-status.json")) && !Directory.Exists(Path.Combine(root,"Power")),"state migration preserves recovery ownership and removes the empty legacy directory");
+                string background=Path.Combine(RuntimeDeployment.Root,"1.2.2-0123456789abcdef");
+                Require(RuntimeDeployment.IsBackgroundDirectory(background) && !RuntimeDeployment.IsBackgroundDirectory(Path.Combine(root,"1.2.2-0123456789abcdef")),"only managed background directories use the shared DriverStore");
+                string store=Path.Combine(root,"DriverStore");Directory.CreateDirectory(store);
+                string keep=Path.Combine(store,new string('A',64)),old=Path.Combine(store,new string('B',64)),active=Path.Combine(store,new string('C',64));
+                foreach(string dir in new[]{keep,old,active}) {Directory.CreateDirectory(dir);File.WriteAllText(Path.Combine(dir,"CMP90HXDma.sys"),"test image");}
+                string unknown=Path.Combine(store,new string('D',64));Directory.CreateDirectory(unknown);File.WriteAllText(Path.Combine(unknown,"user.txt"),"keep");
+                DriverService.CleanStore(store,Path.Combine(keep,"CMP90HXDma.sys"),Path.Combine(active,"CMP90HXDma.sys"),s=>{});
+                Require(Directory.Exists(keep) && Directory.Exists(active) && !Directory.Exists(old) && Directory.Exists(unknown),"driver cleanup removes obsolete versions and preserves loaded images and unknown files");
+            } finally {Directory.Delete(root,true);}
         }
         static void TestSynchronizationAndCleanup()
         {

@@ -11,6 +11,8 @@
     <RootNamespace>CMP90HXDma</RootNamespace>
     <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
     <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion>
+    <ProjectName>CMP90HXDmaDriver</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Label="Configuration">
@@ -38,23 +40,31 @@
       </ExceptionHandling>
     </ClCompile>
     <Link>
-      <AdditionalDependencies>Wdmsec.lib;Aux_Klib.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>Wdmsec.lib;Aux_Klib.lib;Cng.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src\driver.c" />
+    <ClCompile Include="src\caller_auth.c" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\protocol.h" />
     <ClInclude Include="include\arena_state.h" />
     <ClInclude Include="include\hardware_scope.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="src\hardware.h" />
+    <ClInclude Include="src\caller_auth.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Directory.Build.props" />
   </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="Resource.rc" />
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <Target Name="ValidateKernelToolset" BeforeTargets="PrepareForBuild">
+    <Error Condition="!Exists('$(MSBuildThisFileDirectory)..\build\caller-policy.h')" Text="Caller policy is missing. Run build-dma-driver.ps1 to build/test Gen2 and generate the policy first." />
     <Error Condition="'$(PlatformToolset)' != 'WindowsKernelModeDriver10.0'" Text="Select WindowsKernelModeDriver10.0, not a desktop C++ toolset." />
     <Error Condition="'$(DDK_LIB_PATH)' == ''" Text="WDK integration is not active in this Visual Studio installation. Install matching SDK/WDK and its VS extension; use VS 2022 with build-dma-driver.ps1." />
     <Error Condition="!Exists('$(DDK_LIB_PATH)\ntoskrnl.lib')" Text="Selected WDK kernel libraries are missing. Install matching SDK/WDK and select their version." />

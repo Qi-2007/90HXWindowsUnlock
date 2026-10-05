@@ -13,6 +13,7 @@ namespace CMP90HX.Control
         internal static string PreviewState;
         internal static string SnapshotPath;
         internal static LogSession Session;
+        internal static bool DisableAutoUnlock;
         Mutex instance;
         bool ownsInstance;
         DesktopPresence desktop;
@@ -25,6 +26,7 @@ namespace CMP90HX.Control
             string validationReport = null;
             bool elevationAttempted = false;
             bool automatic = false;
+            bool disableAutoUnlock = false;
             try {
                 for (int i = 0; i < e.Args.Length; i++) {
                     string argument = e.Args[i];
@@ -33,6 +35,7 @@ namespace CMP90HX.Control
                     else if (argument == "--compact") compact = true;
                     else if (argument == "--elevated") elevationAttempted = true;
                     else if (argument == "--auto-unlock") automatic = true;
+                    else if (argument == "--disable-auto-unlock") disableAutoUnlock = true;
                     else if (argument == "--validate-package" && i + 1 < e.Args.Length) validationReport = Path.GetFullPath(e.Args[++i]);
                     else throw new ArgumentException("未知参数：" + argument);
                 }
@@ -50,6 +53,16 @@ namespace CMP90HX.Control
                         Shutdown(code);
                     }
                     return;
+                }
+                if(PreviewState==null) {
+                    string settingsRoot=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX");
+                    DisableAutoUnlock=StartupSettings.AutoUnlockDisabled(disableAutoUnlock,settingsRoot);
+                    if(automatic && DisableAutoUnlock) {
+                        // No elevation, driver start, power pause, device enumeration,
+                        // or DMA operation is needed for a disabled background task.
+                        Trace.WriteLine("AUTO_UNLOCK_DISABLED: startup switch or settings.json; skipped.");
+                        Shutdown(0);return;
+                    }
                 }
                 if(PreviewState==null && !automatic && DesktopPresence.TryActivate()) {Shutdown(0);return;}
                 if (PreviewState == null && !IsAdministrator()) {

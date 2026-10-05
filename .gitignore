@@ -23,3 +23,11 @@ __pycache__/
 *.key
 *.cer
 *.crt
+*.pem
+5cca7e4891a7ed8f653b3720ece7a6f7.zip
+/.build/
+*.signing.zip
+
+# Visual Studio resource editor intermediates.
+*.aps
+/driver/RC??????

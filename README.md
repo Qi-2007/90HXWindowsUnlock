@@ -41,7 +41,10 @@ SBR/ASPM/目标速率控制。MMIO 限于已验证 GA102 的 16 MiB BAR0、ACPI 
 - `ui/`：C# / WPF 控制台，Windows 11 风格界面。
 - `build-gui.ps1` / `run-gui-workflow.ps1`：界面构建与按需提权工作流。
 - `build-dma-driver.ps1`：编译 `CMP90HXDma.sys`。
-- `build.ps1`：编译 C# 程序并运行模拟自测。
+- `build.ps1`：仅编译 C# 程序并运行模拟自测。
+- `build-gen2.ps1` / `sign-gen2.ps1`：编译并签名 Gen2 / 独立签名已自测的 Gen2。
+- `build-app.ps1`：编译/自测 Gen2、核对已有驱动白名单、更新哈希并编译 GUI；Gen2 变化时改用完整发布。
+- `build-release.ps1`：完整发布，自测 Gen2、自动生成白名单、重建驱动、等待驱动签名，再编译 GUI 和打包。
 - `update-release-hashes.ps1`：校验签名、构建自测、更新两个运行文件哈希并重建 GUI。
 - `install-dma-driver.ps1`：检查签名并创建、启动按需驱动服务。
 - `run-full-test.ps1`：Preflight / GpuDmaInitTest / Unlock / Verify。
@@ -49,10 +52,24 @@ SBR/ASPM/目标速率控制。MMIO 限于已验证 GA102 的 16 MiB BAR0、ACPI 
 
 ## Windows 编译
 
+驱动现在使用**自动生成的调用程序 SHA-256 白名单**，不要求 Gen2 具有数字签名。
+`build-dma-driver.ps1` 自动构建/自测 Gen2，生成 `build/caller-policy.h` 并把完整 EXE
+摘要编入驱动。驱动在打开设备时读取进程创建通知提供的实际映像文件对象并校验摘要；
+未匹配程序、驱动启动前已运行的程序和校验失败均被拒绝，保留管理员/SYSTEM ACL 与进程归属检查。
+GUI 通过 Gen2 调用驱动，独立探测程序不会自动获准。检查覆盖磁盘 EXE，
+不验证进程中的 DLL、配置或运行时内存，也不能替代对管理员/内核权限的系统防护。
+
+完整发布执行 `build-release.ps1`：自测 Gen2 → 自动生成白名单 → 编译驱动 →
+外部签名驱动 → 自动更新 GUI 哈希 → 打包。发布和 `-PackageOnly` 从实际驱动二进制
+核对内置白名单，拒绝旧驱动或与 Gen2 不匹配的驱动。无需手工修改哈希，
+但 Gen2 字节发生变化（包括重新签名）后必须重建、重新签名并更新驱动。
+驱动本身仍需符合 Windows 签名策略；新进程通知回调要求 `/INTEGRITYCHECK`。
+本次启动无法替换已加载驱动，更新后须重启。打开设备校验仍待签名驱动的实机验证。
+
 安装 Visual Studio 2022 的 C++ 桌面开发、Windows SDK 和匹配的 WDK，
 确认安装 `WindowsKernelModeDriver10.0` 平台工具集。
 同时安装 WDK 的 Visual Studio 集成扩展（只有 Windows SDK 不提供内核驱动头文件）。
-使用 VS 2022；构建脚本默认查找 MSBuild 17，不再使用 PATH 中可能来自其他 VS 版本的 MSBuild。
+构建脚本自动查找已安装的 MSBuild；驱动构建要求该安装具有 x64 `WindowsKernelModeDriver10.0` 集成。
 
 在 VS 开发者 PowerShell 中进入仓库目录：
 
@@ -66,13 +83,13 @@ cd 90HXWindowsUnlock
 脚本自动选择同时具有 SDK 用户头文件和 WDK 内核头文件/库的版本，
 可用 `-SdkVersion 10.0.xxxxx.0` 指定已安装版本。
 如需指定其他工具链，可通过 `-MSBuild '完整路径\MSBuild.exe'` 指定。
-生成 `build\dma-driver\CMP90HXDma.sys` 和 `build\CMP90HXGen2.exe`。
-构建不自动签名、不加载驱动、不修改系统设置。编译失败时保留完整日志供修正。
+生成 `build\dma-driver\CMP90HXDma.sys` 和 `build\CMP90HXUnlocker.exe`。
+上述两个命令只编译和自测，不加载驱动或修改系统设置。Gen2 编译并签名使用 `build-gen2.ps1`；编译失败时保留日志供修正。
 
 ## Visual Studio 中打开项目
 
 不要在源码目录重新创建空项目。打开仓库自带的 `90HXWindowsUnlock.sln`，
-解决方案包含 `CMP90HXDma`（C 驱动）、`CMP90HXWindows`（命令行）和 `CMP90HXControl`（WPF 界面），源码已纳入项目。
+解决方案包含 `CMP90HXDmaDriver`（C 驱动）、`CMP90HXUnlockProgram`（命令行）和 `CMP90HXUnlockConsole`（WPF 界面），源码已纳入项目。
 选择 `Release | x64`。C# 项目需 .NET Framework 4.8.1 Developer Pack（含 targeting pack）；
 `build.ps1` 和 `build-gui.ps1` 使用 MSBuild 及 4.8.1 引用程序集编译；前者运行模拟自测。运行程序需安装 .NET Framework 4.8.1。
 直接点击 VS 生成不会自动运行模拟自测，请再执行 `build.ps1`。
@@ -85,9 +102,16 @@ Windows SDK 版本与 WDK 版本一致。日志若只有 `/MD /EHsc` 且没有�
 
 ## 图形控制台和独立运行包
 
+独立编译、签名证书选择、本地配置及完整发布步骤见 [编译与发布说明](docs/BUILDING_ZH.md)。
+
+```powershell
+.\build-gen2.ps1    # 编译 Gen2 并签名；首次选择 PFX/P12/ZIP，之后读取本地配置
+.\build-release.ps1 # 自动生成调用白名单；只需在提示处签名驱动
+```
+
 `CMP90HXControl` 为 C# / WPF / .NET Framework 4.8.1 程序。启动时一次请求 UAC，硬件工作进程继承管理员权限，后续操作不再反复提权。
 GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读取、预检、解锁编排、恢复与一次验证均已移植到 C#；运行时不启动 PowerShell。
-硬件核心继续在独立 `CMP90HXGen2.exe` 中运行，避免核心异常直接破坏 GUI 进程。
+硬件核心继续在独立 `CMP90HXUnlocker.exe` 中运行，避免核心异常直接破坏 GUI 进程。
 
 构建 GUI：
 
@@ -105,24 +129,24 @@ GUI 的文件检查、设备枚举与启停、驱动安装和启动、状态读�
 哈希配置在 `ui/NativeWorkflow.cs` 的 `RuntimePaths.Gen2Hash` 与 `DmaHash`。
 签名后可单独运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\update-release-hashes.ps1`，
 脚本确认工作进程构建自测通过、驱动签名有效后，更新两项哈希，复制驱动到 GUI 使用的
-`build\dma-driver\CMP90HXDmaSigned.sys` 并重建 GUI。默认保留并读取上次选定的
-`build\dma-driver\CMP90HXDmaSigned.sys`；该文件不存在时使用 `CMP90HXDma.sys`。
-重新编译并签名新驱动后，须显式传 `-SignedDriverPath` 选择新文件，避免误用旧构建。
-自定义签名文件可传 `-SignedDriverPath '完整路径\驱动.sys'`。
+`build\dma-driver\CMP90HXDma.sys` 并重建 GUI。默认读取该文件；驱动编译后
+直接原地签名，保持原文件名，不需要另存或改名。
+自定义签名文件可传 `-DriverPath '完整路径\驱动.sys'`。
 `build-release.ps1` 自动调用同一脚本，并验证发布包内两个文件与配置哈希一致；
-无效签名会在更新配置前报错。脚本不重新编译驱动、加载驱动或修改系统签名策略。
+无效签名会在更新运行文件哈希前报错。完整发布会重建驱动并等待你签名，验证签名对应本次构建；
+使用 `-PackageOnly` 可复用已准备的签名产物。脚本不加载驱动或修改系统签名策略。
 
 如果在打包完成后给发布目录里的 `CMP90HXControl.exe` 签名，需再运行：
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDirectory '.\dist\CMP90HX-Control-1.2.2-<时间>'
+powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDirectory '.\dist\CMP90HX-Control-1.2.4-<时间>'
 ```
 
 脚本验证签名及原 ZIP 中的程序内容，仅更新 GUI 签名带来的哈希变化，运行发布包校验，
 再生成新的 `-signed-<时间>.zip` 和 SHA256 文件。保留原 ZIP 供对照。
 工作进程或驱动发生变化时应重新运行 `build-release.ps1`。
 
-使用本地已签名的 DMA 驱动及 `build/dma-driver/cert/` 两个证书作为输入，生成 `dist/CMP90HX-Control-1.2.2-<时间>/` 和 ZIP、SHA256。
+使用本地已签名的 DMA 驱动及根目录 `cert/` 中唯一的公开证书作为输入，生成 `dist/CMP90HX-Control-1.2.4-<时间>/` 和 ZIP、SHA256。GUI 构建会自动读取该证书的名称、指纹和哈希。
 包内包含 GUI、预编译工作进程、固定核心及统一驱动；解压后不依赖源码目录或开发工具。
 构建脚本运行原有核心自测和原生编排测试，并从发布目录执行不加载驱动的完整文件检查。
 开发构建仍需要 Visual Studio MSBuild；运行包需要 .NET Framework 4.8.1。
@@ -130,10 +154,10 @@ powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDir
 | 操作 | 内容 |
 | --- | --- |
 | 环境检查 | 文件与签名、核心模拟测试、系统根证书、驱动安装状态、DMA 映射/物理回读和只读硬件预检。 |
-| 驱动管理 | 独立窗口查看和安装/卸载两个固定指纹根证书及 DMA 驱动；已加载驱动卸载后重启生效。 |
+| 驱动管理 | 独立窗口查看和安装/卸载构建时选定的一个根证书及 DMA 驱动；已加载驱动卸载后重启生效。 |
 | 计划任务管理 | 独立窗口安装/卸载/手动触发 SYSTEM 开机及 Kernel-Power 107 唤醒任务；安装前自动补齐证书和驱动并通过环境检查。 |
 | 空闲省电 | 独立窗口设置空闲 P8、GPU 阈值、等待时间及全速应用例外；SYSTEM 后台常驻，解锁前暂停，设备恢复后重新检测。 |
-| 刷新解锁状态 | 确保统一驱动运行，一次只读快照，同时判断两端 PCIe Gen/宽度、计算和图形解锁寄存器；不申请 DMA 内存或改变显卡启停状态。 |
+| 刷新解锁状态 | 默认启动后自动读取一次，也可手动点击；确保统一驱动运行，采集寄存器快照，同时判断两端 PCIe Gen/宽度、计算和图形解锁寄存器；不申请 DMA 内存或改变显卡启停状态。后台省电控制运行时会暂时释放性能限制。 |
 | 开始解锁 | 默认快速时序，保留保守兼容开关；原本启用的设备暂时停用，恢复后以一次快照验证。 |
 
 
@@ -143,6 +167,19 @@ powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDir
 详细说明见 [运行包使用说明](docs/RELEASE_GUIDE_ZH.md)。
 
 自动解锁任务取消原来的开机 20 秒、唤醒 10 秒延迟，直接触发后等待设备就绪；更新后重新安装任务生效。
+如需排查启动时蓝屏，可以使用 `CMP90HXControl.exe --disable-auto-unlock`：跳过本进程的启动自动寄存器读取；与 `--auto-unlock` 同时传入时，后台任务直接成功退出，不执行硬件操作。该参数不会停用另一个进程中的计划任务或后台省电。
+
+也可在 `C:\ProgramData\CMP90HX\settings.json` 的 JSON 顶层添加 `"DisableAutoUnlock": true`，同时禁用后续桌面启动的自动读取以及开机/唤醒自动解锁。已有 `Power` 等配置项应保留。例如：
+
+```json
+{
+  "DisableAutoUnlock": true,
+  "Power": { "Enabled": false, "Threshold": 15, "IdleSeconds": 10, "FullSpeedApps": "" }
+}
+```
+
+配置项省略或设为 `false` 时保留默认行为；启动参数优先禁用，即使配置文件损坏也可用它打开界面。修改后对新启动的进程生效，不中止正在执行的硬件流程。手动读取和手动解锁仍可使用；后台省电使用独立的 `Power.Enabled` 开关。
+
 内置省电默认关闭，启用前退出 Inspector 的 Multi Display Power Saver；启用会停用其已识别的登录任务。
 通过系统 NVAPI 设置 P8 限制，GPU/视频负载或应用例外触发时恢复自动性能策略。该驱动私有接口的真实写入及睡眠恢复尚待实机验证。
 
@@ -172,6 +209,9 @@ powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDir
 在已临时关闭驱动签名强制验证的本地、可重启测试机上，可对未签名的构建执行
 不依赖显卡的加载与 DMA 内存预留/映射冒烟测试（管理员 PowerShell）：
 
+**以下未签名冒烟步骤仅适用于旧驱动。** 新的调用白名单驱动注册进程通知并启用
+`/INTEGRITYCHECK`，需要按内核策略签名；请使用签名后的新驱动和与之匹配的 Gen2。
+
     .\build.ps1
     .\install-dma-driver.ps1 -DriverPath "$PWD\build\dma-driver\CMP90HXDma.sys" -UnsignedSmokeTest
 
@@ -185,8 +225,8 @@ powershell -ExecutionPolicy Bypass -File .\update-package-hashes.ps1 -PackageDir
 安装/启动重新签名的 CMP90HXDma v2 后，首先在管理员终端测试 CPU 映射：
 
 ```powershell
-.\build\CMP90HXGen2.exe arena-info --physical-dma-experiment
-.\build\CMP90HXGen2.exe dma-test --drivers .\drivers --physical-dma-experiment --log .\logs\dma-test.log
+.\build\CMP90HXUnlocker.exe arena-info --physical-dma-experiment
+.\build\CMP90HXUnlocker.exe dma-test --drivers .\drivers --physical-dma-experiment --log .\logs\dma-test.log
 ```
 
 完整探针/解锁需要固定原生核心。使用自己的 UEFI v0.2.2 / core 469dc0c 文件静态提取：

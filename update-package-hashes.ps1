@@ -1,6 +1,7 @@
-[CmdletBinding()]
+﻿[CmdletBinding()]
 param([Parameter(Mandatory=$true)][string]$PackageDirectory)
 $ErrorActionPreference='Stop'
+. (Join-Path $PSScriptRoot 'tools\ConsoleEncoding.ps1')
 $PackageDirectory=[IO.Path]::GetFullPath($PackageDirectory).TrimEnd('\')
 $manifestPath=Join-Path $PackageDirectory 'files.sha256.json'
 $originalManifest=[IO.File]::ReadAllText($manifestPath)

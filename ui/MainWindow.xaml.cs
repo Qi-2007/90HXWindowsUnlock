@@ -42,7 +42,7 @@ namespace CMP90HX.Control
         bool refreshing;
 
         bool closed;
-        bool startupStatusRead;
+        bool startupInitialized;
 
         public MainWindow()
         {
@@ -56,6 +56,19 @@ namespace CMP90HX.Control
             Closed += delegate { closed = true; timer.Stop(); };
         }
 
+        void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
+        {
+            e.Handled = true;
+            if (e.Uri == null || !e.Uri.IsAbsoluteUri ||
+                (e.Uri.Scheme != Uri.UriSchemeHttps && e.Uri.Scheme != Uri.UriSchemeHttp)) return;
+            try {
+                Process.Start(new ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            } catch (Exception error) {
+                MessageBox.Show(this, "无法打开链接：" + error.Message, "打开链接失败",
+                    MessageBoxButton.OK, MessageBoxImage.Error);
+            }
+        }
+
         async void Window_Loaded(object sender, RoutedEventArgs e)
         {
             if (App.PreviewState != null) {
@@ -64,12 +77,15 @@ namespace CMP90HX.Control
                     await Dispatcher.InvokeAsync(new Action(SavePreview), DispatcherPriority.ApplicationIdle);
                 return;
             }
-            if(startupStatusRead) return;
-            startupStatusRead = true;
+            if(startupInitialized) return;
+            startupInitialized = true;
             AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查。\r\n旧日志已清理，本次操作记录会自动保存。\r\n");
             RefreshStatus();
             timer.Start();
-            await RunWorkflow("Status", "解锁状态");
+            if(App.DisableAutoUnlock) {
+                UnlockReadDetail.Text="已禁用启动自动读取；可点击“刷新解锁状态”手动采集。";
+                AppendLog("AUTO_UNLOCK_DISABLED: 已跳过启动自动读取；手动读取和手动解锁仍可用。\r\n");
+            } else await RunWorkflow("Status", "解锁状态");
         }
 
         void Window_Closing(object sender, CancelEventArgs e)

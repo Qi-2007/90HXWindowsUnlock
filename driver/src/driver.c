@@ -2,6 +2,7 @@
 #include <wdmsec.h>
 #include "../include/protocol.h"
 #include "../include/arena_state.h"
+#include "caller_auth.h"
 
 /* This experimental legacy driver supplies PHYSICAL addresses, not IOVAs.
  * Register access is scoped to a validated GA102 BAR0/upstream bridge.
@@ -64,6 +65,13 @@ NTSTATUS Dispatch(PDEVICE_OBJECT device, PIRP irp)
     ULONG_PTR bytes = 0;
     UNREFERENCED_PARAMETER(device);
     if (KeGetCurrentIrql() != PASSIVE_LEVEL) return Finish(irp, STATUS_INVALID_DEVICE_STATE, 0);
+    /* File I/O and CNG must run before the arena mutex raises IRQL to APC_LEVEL. */
+    if (stack->MajorFunction == IRP_MJ_CREATE) {
+        if (irp->RequestorMode != UserMode || IoGetRequestorProcess(irp) != PsGetCurrentProcess())
+            return Finish(irp, STATUS_ACCESS_DENIED, 0);
+        status = CallerAuthVerify(PsGetCurrentProcess());
+        if (!NT_SUCCESS(status)) return Finish(irp, STATUS_ACCESS_DENIED, 0);
+    }
     ExAcquireFastMutex(&Lock);
     /* ExAcquireFastMutex raises to APC_LEVEL; allocations/mapping require <= APC_LEVEL. */
     switch (stack->MajorFunction) {
@@ -93,7 +101,7 @@ NTSTATUS Dispatch(PDEVICE_OBJECT device, PIRP irp)
         status = STATUS_SUCCESS;
         break;
     case IRP_MJ_DEVICE_CONTROL:
-        if (Owner != stack->FileObject || PsGetCurrentProcess() != Process ||
+        if (Owner != stack->FileObject || PsGetCurrentProcess() != Process || IoGetRequestorProcess(irp) != Process ||
             irp->RequestorMode != UserMode) { status = STATUS_ACCESS_DENIED; break; }
         if (stack->Parameters.DeviceIoControl.IoControlCode >= CMP_BIND &&
             stack->Parameters.DeviceIoControl.IoControlCode <= CMP_MMIO_WRITE) {
@@ -155,11 +163,13 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT driver, PUNICODE_STRING registry)
     UNREFERENCED_PARAMETER(registry);
     HardwareInitialize(); /* Firmware APIs require PASSIVE_LEVEL, before the mutex. */
     ExInitializeFastMutex(&Lock);
+    status = CallerAuthInitialize();
+    if (!NT_SUCCESS(status)) return status;
     status = IoCreateDeviceSecure(driver, 0, &name, CMP_DEVICE_TYPE,
         FILE_DEVICE_SECURE_OPEN, TRUE, &acl, &DeviceClass, &device);
-    if (!NT_SUCCESS(status)) return status;
+    if (!NT_SUCCESS(status)) { CallerAuthShutdown(); return status; }
     status = IoCreateSymbolicLink(&link, &name);
-    if (!NT_SUCCESS(status)) { IoDeleteDevice(device); return status; }
+    if (!NT_SUCCESS(status)) { IoDeleteDevice(device); CallerAuthShutdown(); return status; }
     for (i = 0; i <= IRP_MJ_MAXIMUM_FUNCTION; ++i) driver->MajorFunction[i] = Dispatch;
     driver->DriverUnload = NULL;
     device->Flags &= ~DO_DEVICE_INITIALIZING;
