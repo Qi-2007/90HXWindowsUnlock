@@ -5,14 +5,6 @@ using System.Runtime.InteropServices;
 
 namespace CMP90HX.Control
 {
-    internal sealed class PowerSample
-    {
-        public int Pstate {get;set;}
-        public int Gpu {get;set;}
-        public int Video {get;set;}
-        public double? Watts {get;set;}
-        public string InstanceId {get;set;}
-    }
     internal interface IPowerGpu : IDisposable
     {
         PowerSample Read();

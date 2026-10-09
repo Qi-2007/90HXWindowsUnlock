@@ -140,42 +140,7 @@ namespace CMP90HX.Control
                 var locked=new FakePlatform {BaselineLocked=true};code=Run(paths,locked,"AutoUnlock",out log);
                 Require(code==0 && locked.Disables==1 && locked.Enables==1 && locked.SnapshotCalls==2 && locked.Commands.Count(s=>s=="full-unlock")==1,"automatic locked GPU executes once then verifies once");
                 var autoDisabled=new FakePlatform {Code=22};code=Run(paths,autoDisabled,"AutoUnlock",out log);
-                Require(code!=0 && autoDisabled.Disables==0 && autoDisabled.Enables==0 && !autoDisabled.Commands.Contains("full-unlock"),"automatic task does not override a disabled GPU");
-                var order=new List<string>();bool certificates=false,driver=false;
-                EnvironmentSetup.Prepare(()=>order.Add("validate"),()=>certificates,()=>{order.Add("certificates");certificates=true;},()=>driver,
-                    ()=>{order.Add("driver");driver=true;},()=>{order.Add("environment");return 0;},()=>order.Add("register"),s=>{});
-                Require(order.SequenceEqual(new[]{"validate","certificates","driver","environment","register"}),"task registration occurs only after repairing certificates driver and passing environment check");
-                bool registered=false,setupFailed=false;
-                try {EnvironmentSetup.Prepare(()=>{},()=>true,()=>{},()=>true,()=>{},()=>1,()=>registered=true,s=>{});} catch(IOException) {setupFailed=true;}
-                Require(setupFailed && !registered,"failed environment check cannot register auto-unlock task");
-                setupFailed=false;
-                try {EnvironmentSetup.Prepare(()=>{},()=>false,()=>{},()=>true,()=>{},()=>0,()=>registered=true,s=>{});} catch(IOException) {setupFailed=true;}
-                Require(setupFailed && !registered,"certificate repair must actually succeed before task registration");
-                string xml=TaskManagement.Xml(@"C:\ProgramData\CMP90HX\A & B\CMP90HXControl.exe");
-                var doc=new XmlDocument();doc.LoadXml(xml);var ns=new XmlNamespaceManager(doc.NameTable);ns.AddNamespace("t",doc.DocumentElement.NamespaceURI);
-                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==1 && doc.SelectNodes("//t:Delay",ns).Count==0 && doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=107") && !doc.SelectSingleNode("//t:Subscription",ns).InnerText.Contains("EventID=42") && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--auto-unlock" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","task definition uses boot wake SYSTEM without fixed delays or forced DMA termination");
-                doc.LoadXml(TaskManagement.PowerXml(paths.Worker));
-                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==0 && doc.SelectNodes("//t:Delay",ns).Count==0 && doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Arguments",ns).InnerText=="--power-monitor" && doc.SelectSingleNode("//t:AllowHardTerminate",ns).InnerText=="false" && doc.SelectSingleNode("//t:ExecutionTimeLimit",ns).InnerText=="PT0S","power task stays resident as SYSTEM with no forced termination");
-                TaskManagement.ValidateDefinition(paths.Worker);
-                TaskManagement.ValidateDefinition(paths.Worker,true);
-                doc.LoadXml(TaskManagement.CleanupXml());
-                string cleanupArguments=doc.SelectSingleNode("//t:Arguments",ns).InnerText;
-                string cleanupScript=Encoding.Unicode.GetString(Convert.FromBase64String(cleanupArguments.Substring(cleanupArguments.LastIndexOf(' ')+1)));
-                Require(doc.SelectNodes("//t:BootTrigger",ns).Count==1 && doc.SelectNodes("//t:EventTrigger",ns).Count==0 &&
-                    doc.SelectSingleNode("//t:UserId",ns).InnerText=="S-1-5-18" && doc.SelectSingleNode("//t:Command",ns).InnerText.EndsWith("powershell.exe",StringComparison.OrdinalIgnoreCase) &&
-                    cleanupScript==TaskManagement.CleanupScript() && cleanupScript.Contains("Assert-NoLinks $root") && cleanupScript.Contains("Remove-Item -LiteralPath $root") &&
-                    cleanupScript.Contains("Driver still installed") && cleanupScript.Contains("DeleteTask('"+TaskManagement.CleanupName+"'"),
-                    "uninstall cleanup runs independently at boot as SYSTEM with root/link/driver guards and self-removal");
-                TaskManagement.ValidateCleanupDefinition();
-                Require(true,"Windows Task Scheduler accepts the generated definition without registering a task");
-                Console.WriteLine("READ_ONLY_TASK "+TaskManagement.Query().Text);
-                var deniedTask=TaskManagement.QueryStatus(()=>{throw new UnauthorizedAccessException();});
-                Require(!deniedTask.CanRead && deniedTask.Text.Contains("0x80070005"),"task access denial remains an explicit unknown status instead of failing publication");
-                deniedTask=TaskManagement.QueryStatus(()=>{throw new System.Runtime.InteropServices.COMException("denied",unchecked((int)0x80070005));});
-                Require(!deniedTask.CanRead,"COM task access denial is handled without granting mutation rights");
-                bool unexpectedTaskError=false;
-                try {TaskManagement.QueryStatus(()=>{throw new IOException("unexpected");});} catch(IOException) {unexpectedTaskError=true;}
-                Require(unexpectedTaskError,"task errors other than access denial are not hidden");
+                Require(code!=0 && autoDisabled.Disables==0 && autoDisabled.Enables==0 && !autoDisabled.Commands.Contains("full-unlock"),"automatic unlock does not override a disabled GPU");
                 CertificateManager.ValidateFiles(paths);
                 Require(true,"bundled certificate hashes and thumbprints match pinned inputs");
                 string logRoot=Path.Combine(Path.GetTempPath(),"CMP90HX-log-tests",Guid.NewGuid().ToString("N"));

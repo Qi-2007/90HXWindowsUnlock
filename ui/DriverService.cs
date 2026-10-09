@@ -71,8 +71,8 @@ namespace CMP90HX.Control
                 try {
                     string path; if(ReadConfig(service,out path).Type!=1) throw new IOException("拒绝删除同名的非内核服务。");
                     bool active=Read(service).State!=1;
-                    if(!ChangeServiceConfig(service,uint.MaxValue,4,uint.MaxValue,null,null,IntPtr.Zero,null,null,null,null)) throw Error("Disable CMP90HXDma");
-                    if(!DeleteService(service)) throw Error("DeleteService CMP90HXDma");
+                    if(!ChangeServiceConfig(service,uint.MaxValue,4,uint.MaxValue,null,null,IntPtr.Zero,null,null,null,null)) {if(Marshal.GetLastWin32Error()==1072){log("CMP90HXDma 已标记为删除，卸载已提交，重启后释放。");return;}throw Error("Disable CMP90HXDma");}
+                    if(!DeleteService(service) && Marshal.GetLastWin32Error()!=1072) throw Error("DeleteService CMP90HXDma");
                     log(active?"DMA_DRIVER_UNINSTALL: 服务注册已移除；当前驱动不支持卸载，重启后生效。":"DMA_DRIVER_UNINSTALL: 驱动服务已卸载。");
                 } finally { CloseServiceHandle(service); }
             } finally { CloseServiceHandle(manager); }
@@ -125,7 +125,7 @@ namespace CMP90HX.Control
                 catch(UnauthorizedAccessException) {log("DMA_DRIVER_VERSION_RETAINED: 当前无法清理 "+path);}
             }
         }
-        internal static void EnsureRunning(string source,Action<string> log,bool installIfMissing=true)
+        internal static void EnsureRunning(string source,Action<string> log,bool installIfMissing=false)
         {
             using(var deployment=new DeploymentLock()) EnsureRunningLocked(source,log,installIfMissing);
         }
@@ -133,6 +133,22 @@ namespace CMP90HX.Control
         {
             RuntimePaths.RequireHash(source,RuntimePaths.DmaHash);
             SignatureTrust.Verify(source);
+            if(!installIfMissing) {
+                // Starting a manually installed service is allowed; copying/reconfiguring/updating it is not.
+                IntPtr existingManager=OpenSCManager(null,null,1);if(existingManager==IntPtr.Zero)throw Error("OpenSCManager");
+                try {
+                    IntPtr existing=OpenService(existingManager,Name,0x15);
+                    if(existing==IntPtr.Zero)throw new IOException("DMA_DRIVER_NOT_INSTALLED: 请在驱动管理中手动安装驱动。");
+                    try {
+                        string configured;var config=ReadConfig(existing,out configured);
+                        if(config.Type!=1 || config.Start==4 || !SameDriverImage(NormalizeDriverPath(configured),RuntimePaths.DmaHash))
+                            throw new IOException("DMA_DRIVER_NOT_INSTALLED: 已安装驱动与当前包不匹配，请在驱动管理中手动更新；已加载的旧版需重启。");
+                        if(Read(existing).State!=4 && !StartService(existing,0,IntPtr.Zero) && Marshal.GetLastWin32Error()!=1056)throw Error("StartService");
+                        if(Read(existing).State!=4)throw new IOException("已安装驱动尚未就绪。");
+                        log("DMA_DRIVER_READY: manually installed service; no installation or update performed.");return;
+                    }finally{CloseServiceHandle(existing);}
+                }finally{CloseServiceHandle(existingManager);}
+            }
             // Inspect the loaded image before writing another version into DriverStore.
             IntPtr probeManager=OpenSCManager(null,null,1);if(probeManager==IntPtr.Zero) throw Error("OpenSCManager");
             string active=null;

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+    <Platform Condition="'$(Platform)' == ''">x64</Platform>
+    <ProjectGuid>{D75909D3-8D37-4FC8-A9BA-A854B9B8B729}</ProjectGuid>
+    <OutputType>Exe</OutputType><RootNamespace>CMP90HX.Control</RootNamespace><AssemblyName>CMP90HXBackground</AssemblyName>
+    <StartupObject>CMP90HX.Control.BackgroundProgram</StartupObject><TargetFrameworkVersion>v4.8.1</TargetFrameworkVersion>
+    <PlatformTarget>x64</PlatformTarget><OutputPath>..\build\</OutputPath><IntermediateOutputPath>..\build\background-obj\</IntermediateOutputPath>
+    <Optimize>true</Optimize><DebugType>pdbonly</DebugType><WarningLevel>4</WarningLevel><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Web.Extensions"/><Reference Include="System.Xml"/><Reference Include="Microsoft.CSharp"/>
+    <None Include="..\ui\App.config"><Link>App.config</Link></None>
+    <Compile Include="..\build\BackendPackagePolicy.cs"/><Compile Include="BackgroundProgram.cs"/><Compile Include="BackendConfig.cs"/><Compile Include="SystemDmaProtection.cs"/><Compile Include="SessionDriverService.cs"/><Compile Include="ReaderService.cs"/><Compile Include="SharedReader.cs"/>
+    <Compile Include="..\shared\ControlIpc.cs"/><Compile Include="..\shared\PowerDtos.cs"/><Compile Include="..\shared\BackendClient.cs"/>
+    <Compile Include="..\ui\NativePnp.cs"/><Compile Include="..\ui\DriverService.cs"/><Compile Include="..\ui\NativeWorkflow.cs"/>
+    <Compile Include="..\ui\CertificateManager.cs"/><Compile Include="..\build\CertificatePolicy.cs"/><Compile Include="..\ui\LogSession.cs"/>
+    <Compile Include="..\ui\NvidiaPowerApi.cs"/><Compile Include="..\ui\PowerControl.cs"/>
+    <Compile Include="PowerHardwareGate.cs"/><Compile Include="..\ui\SharedSynchronization.cs"/><Compile Include="..\ui\StartupSettings.cs"/>
+    <Compile Include="..\ui\RuntimeDeployment.cs"/><Compile Include="..\ui\UnlockSnapshot.cs"/><Compile Include="..\ui\AssemblyInfo.cs"/>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets"/>
+  <Target Name="GenerateCertificatePolicy" BeforeTargets="PrepareForBuild">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\tools\generate-certificate-policy.ps1&quot; -CertificateDirectory &quot;$(CertificateDirectory)&quot;" />
+  </Target>
+  <Target Name="PrepareBackendPackagePolicy" BeforeTargets="PrepareForBuild">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildThisFileDirectory)..\tools\prepare-backend-packages.ps1&quot; -PolicyOnly" />
+  </Target>
+</Project>

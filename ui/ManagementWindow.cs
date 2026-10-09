@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
-using System.Diagnostics;
 using System.IO;
 using System.Text;
 using System.Threading.Tasks;
@@ -11,203 +9,64 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 
-namespace CMP90HX.Control
-{
-    internal sealed class ManagementWindow : Window
-    {
-        readonly bool taskMode,preview;
-        readonly RuntimePaths paths;
-        readonly string session;
-        readonly TextBlock first=new TextBlock(),second=new TextBlock(),driver=new TextBlock(),notice=new TextBlock();
+namespace CMP90HX.Control {
+    internal sealed class ManagementWindow : Window {
+        readonly bool preview;
+        readonly TextBlock reader=new TextBlock(),native=new TextBlock(),sessionDriver=new TextBlock(),certificate=new TextBlock(),notice=new TextBlock();
         readonly TextBox output=new TextBox();
         readonly List<Button> buttons=new List<Button>();
-        readonly Style buttonStyle,cardStyle;
         readonly DispatcherTimer timer=new DispatcherTimer {Interval=TimeSpan.FromSeconds(3)};
-        Button install,uninstall,trigger;
-        bool busy,refreshing,closed;
-        internal ManagementWindow(MainWindow parent,bool taskMode,RuntimePaths paths,string session,bool preview=false)
-        {
-            this.taskMode=taskMode;this.paths=paths;this.session=session;this.preview=preview;
-            buttonStyle=(Style)parent.FindResource("ActionButton");cardStyle=(Style)parent.FindResource("Card");
-            Title=taskMode?"计划任务管理":"驱动管理";
-            Width=660;Height=700;MinWidth=580;MinHeight=620;
-            WindowStartupLocation=WindowStartupLocation.CenterOwner;
+        readonly Button mode;
+        bool busy,closed,refreshing;
+        string selected="Native";
+        internal ManagementWindow(MainWindow parent,RuntimePaths paths,string session,bool preview=false) {
+            this.preview=preview;if(!preview)Owner=parent;Title="驱动管理";Width=700;Height=790;MinWidth=630;MinHeight=710;
+            WindowStartupLocation=WindowStartupLocation.CenterOwner;FontFamily=parent.FontFamily;FontSize=14;UseLayoutRounding=true;
             Background=new SolidColorBrush(Color.FromRgb(244,246,249));
-            FontFamily=parent.FontFamily;FontSize=14;UseLayoutRounding=true;
-            var grid=new Grid();
-            grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-            grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-            grid.RowDefinitions.Add(new RowDefinition {Height=new GridLength(1,GridUnitType.Star)});
-            var heading=new StackPanel {Margin=new Thickness(0,0,0,20)};
-            heading.Children.Add(new TextBlock {Text=Title,FontSize=24,FontWeight=FontWeights.SemiBold});
-            heading.Children.Add(new TextBlock {Text=taskMode?"以 SYSTEM 身份在开机和睡眠唤醒后运行":"系统根证书与 DMA 驱动服务",Foreground=Brushes.SlateGray,Margin=new Thickness(0,6,0,0)});
-            grid.Children.Add(heading);
-            var body=new StackPanel();
-            body.Children.Add(Status(first));
-            if(taskMode) body.Children.Add(Status(second));
-            body.Children.Add(Status(driver));
-            notice.TextWrapping=TextWrapping.Wrap;notice.Foreground=Brushes.SlateGray;notice.FontSize=12;notice.Margin=new Thickness(0,8,0,12);
-            notice.Text=taskMode?"安装时自动补齐证书和驱动，环境检查通过后注册。后台已解锁则跳过。":"证书安装到 LocalMachine / Root。已加载的驱动卸载后，重启生效。";
-            body.Children.Add(notice);
-            if(taskMode) {
-                var taskActions=new StackPanel {Orientation=Orientation.Horizontal};body.Children.Add(taskActions);
-                install=Button(taskActions,"安装计划任务",()=>RegisterTask());
-                uninstall=Button(taskActions,"卸载计划任务",()=>TaskManagement.Uninstall(currentLog));
-                trigger=Button(taskActions,"手动触发",()=>TaskManagement.Run(currentLog));
-            } else {
-                var certActions=new StackPanel {Orientation=Orientation.Horizontal};body.Children.Add(certActions);
-                Button(certActions,"安装证书",()=>CertificateManager.Install(paths,currentLog));
-                Button(certActions,"卸载证书",()=>CertificateManager.Uninstall(currentLog));
-                var driverActions=new StackPanel {Orientation=Orientation.Horizontal};body.Children.Add(driverActions);
-                Button(driverActions,"安装驱动",()=> {
-                    CertificateManager.RequireInstalled();paths.Validate(false,true);
-                    DriverService.EnsureRunning(paths.DmaDriver,currentLog);
-                });
-                Button(driverActions,"卸载驱动",()=>DriverService.Uninstall(currentLog));
-            }
-            var card=new Border {Style=cardStyle,Child=body,Margin=new Thickness(0,0,0,16)};
-            Grid.SetRow(card,1);grid.Children.Add(card);
-            var logGrid=new Grid();
-            logGrid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-            logGrid.RowDefinitions.Add(new RowDefinition {Height=new GridLength(1,GridUnitType.Star)});
-            var label=new DockPanel {Margin=new Thickness(0,0,0,10)};
-            var open=new Button {Content="打开日志目录",Style=buttonStyle,Height=30,Padding=new Thickness(12,0,12,0),HorizontalAlignment=HorizontalAlignment.Right};
-            open.Click+=(s,e)=> { try {Directory.CreateDirectory(paths.Logs);Process.Start(new ProcessStartInfo(paths.Logs) {UseShellExecute=true});} catch(Exception error) {Log(error.Message);} };
-            DockPanel.SetDock(open,Dock.Right);label.Children.Add(open);
-            label.Children.Add(new TextBlock {Text="操作记录",FontWeight=FontWeights.SemiBold,VerticalAlignment=VerticalAlignment.Center});
-            logGrid.Children.Add(label);
-            output.IsReadOnly=true;output.FontFamily=new FontFamily("Cascadia Mono, Consolas");output.FontSize=12;
+            Foreground=parent.Foreground;var grid=new Grid {Margin=new Thickness(24),Background=Background};Content=new Border {Background=Background,Child=grid};
+            grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});grid.RowDefinitions.Add(new RowDefinition());
+            var heading=new StackPanel {Margin=new Thickness(0,0,0,18)};
+            heading.Children.Add(new TextBlock {Text="驱动管理",FontSize=24,FontWeight=FontWeights.SemiBold});
+            heading.Children.Add(new TextBlock {Text="读取与解锁驱动均需手动安装",Foreground=Brushes.SlateGray,Margin=new Thickness(0,6,0,0)});grid.Children.Add(heading);
+            foreach(string key in new[]{"ActionButton","PrimaryButton","SectionTitle","Card"})Resources[key]=parent.FindResource(key);
+            var body=new StackPanel();mode=new Button {Style=(Style)parent.FindResource("ActionButton"),HorizontalContentAlignment=HorizontalAlignment.Left,Padding=new Thickness(12,0,12,0),Margin=new Thickness(0,0,0,10)};
+            mode.Click+=async(s,e)=>{if(busy || preview)return;try {new BackendSettingsWindow(this).ShowDialog();await Refresh();}catch(Exception error){notice.Text=error.Message;}};body.Children.Add(mode);buttons.Add(mode);
+            foreach(var item in new[]{reader,native,sessionDriver,certificate}) {item.TextWrapping=TextWrapping.Wrap;item.Margin=new Thickness(0,0,0,10);body.Children.Add(item);}
+            notice.Text="Session 安装仅加入驱动仓库，解锁时临时接管，结束后恢复 NVIDIA。";notice.TextWrapping=TextWrapping.Wrap;notice.Foreground=Brushes.SlateGray;notice.FontSize=12;notice.Margin=new Thickness(0,4,0,12);body.Children.Add(notice);
+            var installRow=new WrapPanel();body.Children.Add(installRow);
+            AddButton(installRow,"安装读取驱动","ReaderInstall",parent);
+            var unlockInstall=AddButton(installRow,"安装解锁驱动",null,parent);
+            unlockInstall.Click+=async(s,e)=> {
+                if(busy || preview)return;
+                try {selected=BackendClient.Read().Options.Backend;}catch(Exception error){notice.Text=error.Message;return;}
+                string expected=selected;
+                if(MessageBox.Show(this,"确认安装当前选择的 "+expected+" 解锁驱动？\n"+(expected=="Native"?"安装前将再次检查内核 DMA 保护；开启时拒绝安装。":"仅安装驱动包，暂不替换 NVIDIA 驱动。"),"确认安装解锁驱动",MessageBoxButton.YesNo,MessageBoxImage.Question,MessageBoxResult.No)==MessageBoxResult.Yes)await Operate("UnlockDriverInstall",expected);
+            };
+            var removeRow=new WrapPanel();body.Children.Add(removeRow);AddButton(removeRow,"卸载读取驱动","ReaderRemove",parent);AddButton(removeRow,"卸载解锁驱动","UnlockDriverRemove",parent);
+            var certRow=new WrapPanel();body.Children.Add(certRow);AddButton(certRow,"安装证书","CertificatesInstall",parent);AddButton(certRow,"卸载证书","CertificatesRemove",parent);
+            var card=new Border {Style=(Style)parent.FindResource("Card"),Child=body,Margin=new Thickness(0,0,0,16)};Grid.SetRow(card,1);grid.Children.Add(card);
+            output.IsReadOnly=true;output.FontFamily=new FontFamily("Cascadia Mono, Consolas");output.FontSize=12;output.Padding=new Thickness(12);output.BorderThickness=new Thickness(0);
             output.Background=new SolidColorBrush(Color.FromRgb(16,26,42));output.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));
-            output.Padding=new Thickness(12);output.BorderThickness=new Thickness(0);
-            output.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));
-            output.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;output.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;
-            Grid.SetRow(output,1);logGrid.Children.Add(output);
-            Grid.SetRow(logGrid,2);grid.Children.Add(logGrid);
-            var surface=new Grid {Background=Background};
-            surface.RowDefinitions.Add(new RowDefinition {Height=new GridLength(1,GridUnitType.Star)});
-            surface.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});
-            surface.Children.Add(new Border {Background=Background,Padding=new Thickness(24),Child=grid});
-            surface.Children.Add(new ContentControl {
-                Content="Watermark",ContentTemplate=(DataTemplate)parent.FindResource("WatermarkTemplate"),
-                IsHitTestVisible=false,Focusable=false,ClipToBounds=true,
-                HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch
-            });
-            var attribution=new TextBlock {
-                Text="免费工具 · 禁止倒卖  |  Qi-2007/90HXWindowsUnlock",
-                FontSize=12,Foreground=Brushes.SlateGray,Margin=new Thickness(24,0,24,12),
-                ToolTip="项目来源：https://github.com/Qi-2007/90HXWindowsUnlock"
-            };
-            Grid.SetRow(attribution,1);surface.Children.Add(attribution);
-            Content=surface;
-            Loaded+=async(s,e)=> {
-                if(preview) {
-                    ShowPreview();
-                    if(App.SnapshotPath!=null) await Dispatcher.InvokeAsync(new Action(SavePreview),DispatcherPriority.ApplicationIdle);
-                } else {await Refresh();if(taskMode) timer.Start();}
-            };
-            timer.Tick+=async(s,e)=>{if(!busy) await Refresh();};
-            Closing+=OnClosing;Closed+=(s,e)=>{closed=true;timer.Stop();};
+            output.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;output.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;output.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));Grid.SetRow(output,2);grid.Children.Add(output);
+            Loaded+=async(s,e)=> {if(preview){Apply(new ControlState {ReaderDriverState="未安装",NativeDriverState="运行中",SessionDriverState="未安装"});foreach(var b in buttons)b.IsEnabled=false;if(App.SnapshotPath!=null)await Dispatcher.InvokeAsync(new Action(SavePreview),DispatcherPriority.ApplicationIdle);}else {await Refresh();timer.Start();}};
+            timer.Tick+=async(s,e)=>{if(!busy)await Refresh();};Closed+=(s,e)=>{closed=true;timer.Stop();};Closing+=(s,e)=>{if(busy)e.Cancel=true;};
         }
-        Border Status(TextBlock text)
-        {
-            text.TextWrapping=TextWrapping.Wrap;text.FontWeight=FontWeights.SemiBold;
-            return new Border {Background=new SolidColorBrush(Color.FromRgb(245,248,252)),CornerRadius=new CornerRadius(7),Padding=new Thickness(12),Margin=new Thickness(0,0,0,10),Child=text};
-        }
-        Button Button(Panel panel,string text,Action action)
-        {
-            var button=new Button {Content=text,Style=buttonStyle,Margin=new Thickness(0,0,10,10),Padding=new Thickness(15,0,15,0)};
-            button.Click+=async(s,e)=>await Operate(text,action);
+        Button AddButton(Panel panel,string label,string command,MainWindow parent) {
+            var button=new Button {Content=label,Style=(Style)parent.FindResource("ActionButton"),Padding=new Thickness(14,0,14,0),Margin=new Thickness(0,0,10,10)};
+            if(command!=null)button.Click+=async(s,e)=>await Operate(command,null);
             panel.Children.Add(button);buttons.Add(button);return button;
         }
-        void Log(string line)
-        {
-            if(!Dispatcher.CheckAccess()) { if(!closed) Dispatcher.BeginInvoke(new Action(()=>Log(line)));return; }
-            output.AppendText(line+"\r\n");
-            if(output.Text.Length>90000) output.Text=output.Text.Substring(output.Text.Length-70000);
-            output.ScrollToEnd();
+        void Apply(ControlState state) {selected=state.Options.Backend;mode.Content="当前解锁方式："+selected+"    › 设置";reader.Text="读取驱动（Read）："+(state.ReaderDriverState??"待读取");native.Text="Native 解锁驱动："+(state.NativeDriverState??"待读取");sessionDriver.Text="Session 解锁驱动："+(state.SessionDriverState??"待读取");certificate.Text="签名根证书："+(state.Certificates.Length>0 && state.Certificates[0]?"已安装":"未安装");}
+        async Task Refresh() {if(refreshing || closed || preview)return;refreshing=true;try {var state=await Task.Run(()=>BackendClient.Read());if(!closed)Apply(state);}catch(Exception error){notice.Text=error.Message;}finally{refreshing=false;}}
+        async Task Operate(string command,string data) {
+            if(busy || preview)return;busy=true;foreach(var b in buttons)b.IsEnabled=false;output.Clear();notice.Text="操作正在执行…";
+            try {await Task.Run(()=>BackendClient.Require(command,data,line=>Dispatcher.BeginInvoke(new Action(()=>{if(!closed){output.AppendText(line+"\r\n");output.ScrollToEnd();}}))));notice.Text="操作已完成。已加载的 Native / Read 驱动卸载后需要重启生效。";}
+            catch(Exception error){notice.Text=error.Message;output.AppendText(error.Message+"\r\n");}
+            finally{busy=false;foreach(var b in buttons)b.IsEnabled=true;await Refresh();}
         }
-        Action<string> currentLog;
-        void RegisterTask()
-        {
-            EnvironmentSetup.Prepare(()=> {
-                paths.Validate(true,false);CertificateManager.ValidateFiles(paths);RuntimePaths.RequireHash(paths.DmaDriver,RuntimePaths.DmaHash);
-            },CertificateManager.Ready,()=>CertificateManager.Install(paths,currentLog),DriverService.Installed,
-                ()=>DriverService.EnsureRunning(paths.DmaDriver,currentLog),()=> {
-                    var platform=new WindowsWorkflowPlatform(paths,currentLog);
-                    return new NativeWorkflow(paths,platform,currentLog).Execute("Environment",currentDirectory);
-                },()=>TaskManagement.Register(paths,currentLog),currentLog);
-        }
-        string currentDirectory;
-        async Task Operate(string label,Action action)
-        {
-            if(busy || preview) return;
-            busy=true;foreach(var button in buttons) button.IsEnabled=false;
-            output.Clear();notice.Text="正在"+label+"…";
-            try {
-                currentDirectory=Path.Combine(session,"management-"+Guid.NewGuid().ToString("N"));Directory.CreateDirectory(currentDirectory);
-                await Task.Run(()=> {
-                    using(var writer=new StreamWriter(Path.Combine(currentDirectory,"management.log"),false,Encoding.UTF8)) {
-                        writer.AutoFlush=true;
-                        currentLog=line=>{lock(writer) writer.WriteLine(line);Log(line);};
-                        currentLog("BEGIN "+label);
-                        try { action();currentLog("SUCCESS "+label); }
-                        catch(Exception error) {currentLog("FAILED: "+error.Message);throw;}
-                        finally { currentLog=null; }
-                    }
-                });
-                notice.Text=label+"已完成。";
-            } catch(Exception error) {notice.Text=label+"失败："+error.Message;}
-            finally {
-                busy=false;await Refresh();
-                // Keep the operation result in the log; state cards always reflect the system.
-            }
-        }
-        async Task Refresh()
-        {
-            if(refreshing || closed || preview) return;
-            refreshing=true;
-            try {
-                var state=await Task.Run(()=>new {Certificates=CertificateManager.Installed(),Driver=DriverService.CurrentState(),Task=taskMode?TaskManagement.Query():null});
-                if(closed) return;
-                if(taskMode) {
-                    first.Text="计划任务："+state.Task.Text;
-                    second.Text="触发器：开机和唤醒后立即开始，等待设备就绪";
-                    driver.Text="根证书："+(state.Certificates[0]?"已安装":"未安装")+"   ·   DMA 驱动："+state.Driver;
-                    install.IsEnabled=!busy && state.Task.CanRead;uninstall.IsEnabled=trigger.IsEnabled=!busy && state.Task.CanRead && state.Task.Exists;
-                } else {
-                    first.Text=CertificateManager.DisplayName+"："+(state.Certificates[0]?"已安装":"未安装")+"\n"+CertificateManager.Thumbprints[0];
-                    driver.Text="DMA 驱动："+state.Driver;
-                    foreach(var button in buttons) button.IsEnabled=!busy;
-                }
-            } catch(Exception error) {notice.Text="状态读取失败："+error.Message;foreach(var button in buttons) button.IsEnabled=!busy;}
-            finally {refreshing=false;}
-        }
-        void OnClosing(object sender,CancelEventArgs e) {if(busy) {e.Cancel=true;notice.Text="操作仍在运行，请等待完成。";} }
-        void ShowPreview()
-        {
-            foreach(var button in buttons) button.IsEnabled=false;
-            if(taskMode) {
-                first.Text="计划任务：已安装 · 已启用\n上次运行：2026-10-03 16:20:00\n上次结果：0x00000000";
-                second.Text="触发器：开机和唤醒后立即开始，等待设备就绪";
-                driver.Text="根证书：已安装   ·   DMA 驱动：运行中";
-                notice.Text="安装时自动补齐证书和驱动，环境检查通过后注册。";
-            } else {
-                first.Text=CertificateManager.DisplayName+"：已安装\n"+CertificateManager.Thumbprints[0];
-                driver.Text="DMA 驱动：已安装 · 操作时启动";
-                notice.Text="证书安装到 LocalMachine / Root。已加载的驱动卸载后，重启生效。";
-            }
-            Log("界面预览 · 示例状态，不读取硬件，不安装证书或计划任务。");
-        }
-        void SavePreview()
-        {
-            try {
-                UpdateLayout();var content=(FrameworkElement)Content;
-                if(output.ActualHeight<80) throw new IOException("Management log viewport too small.");
-                var bitmap=new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth),(int)Math.Ceiling(content.ActualHeight),96,96,PixelFormats.Pbgra32);
-                bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));
-                Directory.CreateDirectory(Path.GetDirectoryName(App.SnapshotPath));using(var stream=File.Create(App.SnapshotPath)) encoder.Save(stream);
-                Application.Current.Shutdown(0);
-            } catch(Exception error) {File.WriteAllText(App.SnapshotPath+".error.txt",error.ToString());Application.Current.Shutdown(1);}
+        void SavePreview() {
+            try {UpdateLayout();var content=(FrameworkElement)Content;var bitmap=new RenderTargetBitmap((int)Math.Ceiling(content.ActualWidth),(int)Math.Ceiling(content.ActualHeight),96,96,PixelFormats.Pbgra32);bitmap.Render(content);var encoder=new PngBitmapEncoder();encoder.Frames.Add(BitmapFrame.Create(bitmap));Directory.CreateDirectory(Path.GetDirectoryName(App.SnapshotPath));using(var stream=File.Create(App.SnapshotPath))encoder.Save(stream);Application.Current.Shutdown(0);}
+            catch(Exception error){File.WriteAllText(App.SnapshotPath+".error.txt",error.ToString());Application.Current.Shutdown(1);}
         }
     }
 }

@@ -65,12 +65,12 @@ namespace CMP90HX.Control
                     if(App.SnapshotPath!=null) await Dispatcher.InvokeAsync(new Action(SavePreview),DispatcherPriority.ApplicationIdle);
                 } else {
                     try {var settings=PowerStorage.ReadSettings();threshold.Value=settings.Threshold;idle.Text=settings.IdleSeconds.ToString();apps.Text=settings.FullSpeedApps;}catch(Exception error) {Log(error.Message);}
-                    Log("先退出 Inspector 的 Multi Display Power Saver。启用内置省电后会停用它的登录启动任务，保留原程序和配置。\n后台任务独立运行，关闭本窗口不会停止省电。");
+                    Log("请先退出 Inspector 的 Multi Display Power Saver。\n省电由常驻后台执行，关闭本窗口不会停止省电。");
                     await Refresh();timer.Start();
                 }
             };
             timer.Tick+=async(s,e)=>{if(!busy) await Refresh();};Closed+=(s,e)=>{closed=true;timer.Stop();};
-            Closing+=(s,e)=>{if(busy) {e.Cancel=true;detail.Text="设置操作仍在运行，请等待完成。";}};
+
         }
         void Log(string value)
         {
@@ -92,7 +92,7 @@ namespace CMP90HX.Control
                 await Task.Run(()=> {
                     using(var writer=new StreamWriter(Path.Combine(directory,"settings.log"),false,Encoding.UTF8)) {
                         writer.AutoFlush=true;Action<string> log=line=>{writer.WriteLine(line);Log(line);};
-                        try {if(on) PowerTasks.Enable(paths,settings,log);else PowerTasks.Disable(log);}
+                        try {if(on) PowerActions.Enable(paths,settings,log);else PowerActions.Disable(log);}
                         catch(Exception error) {log("FAILED: "+error.Message);throw;}
                     }
                 });
@@ -104,13 +104,13 @@ namespace CMP90HX.Control
         {
             if(refreshing || closed || preview) return;refreshing=true;
             try {
-                var data=await Task.Run(()=>new {Settings=PowerStorage.ReadSettings(),Status=PowerStorage.ReadStatus(),Task=TaskManagement.Query(TaskManagement.PowerName)});
+                var data=await Task.Run(()=>new {Settings=PowerStorage.ReadSettings(),Status=PowerStorage.ReadStatus()});
                 if(closed) return;
                 bool live=data.Status!=null && (DateTime.UtcNow-data.Status.HeartbeatUtc).TotalSeconds<5;
                 state.Text=live?data.Status.Policy:data.Settings.Enabled?"等待后台启动 / 恢复":"省电未启用";
                 var current=live?data.Status.Sample:null;
                 sample.Text=current!=null?"当前 P"+current.Pstate+"   ·   GPU "+current.Gpu+"%   ·   视频 "+current.Video+"%   ·   "+(current.Watts.HasValue?current.Watts.Value.ToString("0.0")+" W":"功耗不可用"):"当前显卡数据待读取";
-                detail.Text=live?data.Status.Detail:"后台任务："+data.Task.Text;
+                detail.Text=live?data.Status.Detail:"等待常驻后台更新省电状态。";
                 detail.ToolTip=detail.Text;
             } catch(Exception error) {state.Text="省电状态读取失败";detail.Text=error.Message;}
             finally {refreshing=false;}

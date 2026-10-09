@@ -35,3 +35,9 @@ __pycache__/
 /migration/
 
 *.log
+
+# Manually supplied backend binaries are local build inputs.
+/backends/native/*
+!/backends/native/README.md
+/backends/session/*
+!/backends/session/README.md

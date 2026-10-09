@@ -10,7 +10,7 @@ namespace CMP90HX.Control
 {
     internal sealed class GpuDevice
     {
-        internal string InstanceId, Name, Bdf;
+        internal string InstanceId, Name, Bdf, Service;
         internal uint Node, Problem, BusAddress;
     }
 
@@ -49,13 +49,15 @@ namespace CMP90HX.Control
                 if(!id.StartsWith(@"PCI\VEN_10DE&DEV_220D&",StringComparison.OrdinalIgnoreCase)) continue;
                 uint node, status, problem;
                 if(CM_Locate_DevNodeW(out node,id,0)!=0 || CM_Get_DevNode_Status(out status,out problem,node,0)!=0) continue;
-                if(problem!=0 && problem!=22 && problem!=43) continue;
+
                 uint bus=BitConverter.ToUInt32(Property(node,0x16),0), address=BitConverter.ToUInt32(Property(node,0x1d),0);
                 uint dev=address>>16, fn=address&65535;
                 if(bus>255 || dev>31 || fn>7) throw new IOException("Unsupported segment-0 PnP BDF.");
                 string name="NVIDIA CMP 90HX";
                 try { name=Encoding.Unicode.GetString(Property(node,13)).TrimEnd('\0'); } catch(IOException) { }
-                resultDevices.Add(new GpuDevice { InstanceId=id,Node=node,Problem=problem,Name=name,
+                string service="";
+                try {service=Encoding.Unicode.GetString(Property(node,5)).TrimEnd('\0');}catch(IOException){}
+                resultDevices.Add(new GpuDevice { InstanceId=id,Node=node,Problem=problem,Name=name,Service=service,
                     BusAddress=(bus<<8)|(dev<<3)|fn,Bdf=bus.ToString("x2")+":"+dev.ToString("x2")+"."+fn });
             }
             return resultDevices;

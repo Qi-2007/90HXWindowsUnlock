@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -12,26 +12,26 @@ namespace CMP90HX.Control
 {
     internal sealed class RuntimePaths
     {
-        internal const string Version="1.2.4";
-        // Updated by update-release-hashes.ps1 before the GUI is compiled.
-        internal const string Gen2Hash="58C770D6330D42DF56EC84F986B873FD75C6FBB3F8A10650A810627CA5240CF3";
-        internal const string DmaHash="96C6EEA49B73CC03B8B9420A928F72BBC038AC817C36D9227D01480E69AC37DD";
-        internal const string CoreHash="B533B7B245ED606C151CA336B9A6BACEBE935E3EC478246E879C668A4DD98A6A";
+        internal const string Version="1.3.0";
+        internal const string ReaderHash="1BFEC88E65E9E72C370A01CD15EEA5DD7B752CB8E776C7EF619245CE8B6328C6";
+        internal const string ReaderClientHash="CC4F5704B1D0569902E9B363A3DCD5D4D72A60897668EF3917DEA17C5FB4EFCF";
+        // Generated from manually prepared local backend packages before compilation.
+        internal const string Gen2Hash=BackendPackagePolicy.NativeWorker;
+        internal const string DmaHash=BackendPackagePolicy.NativeDma;
+        internal const string CoreHash=BackendPackagePolicy.NativeCore;
         internal readonly string Root, Worker, Drivers, DmaDriver, Core, Logs, Certificates;
         internal readonly bool Packaged, Background;
         internal RuntimePaths(string directory)
         {
             directory=Path.GetFullPath(directory);
-            Packaged=File.Exists(Path.Combine(directory,"runtime","CMP90HXUnlocker.exe"));
-            string sourceRoot=Path.GetFullPath(Path.Combine(directory,".."));
-            string nativeRoot=Path.GetFullPath(Path.Combine(sourceRoot,"..","90HXWinNativeUnlock"));
-            Root=Packaged?directory:File.Exists(Path.Combine(sourceRoot,"90HXWinUnlockConsole.sln"))?nativeRoot:sourceRoot;
-            Background=Packaged && RuntimeDeployment.IsBackgroundDirectory(Root);
-            Worker=Packaged?Path.Combine(Root,"runtime","CMP90HXUnlocker.exe"):Path.Combine(Root,"build","CMP90HXUnlocker.exe");
+            // Build stages manually prepared backend packages beside the two Console executables.
+            Root=directory;Packaged=true;
+            Background=RuntimeDeployment.IsBackgroundDirectory(Root);
+            Worker=Path.Combine(Root,"runtime","CMP90HXUnlocker.exe");
             Drivers=Path.Combine(Root,"drivers");
-            DmaDriver=Background?DriverService.StoredDriver:Packaged?Path.Combine(Root,"driver","CMP90HXDma.sys"):Path.Combine(Root,"build","dma-driver","CMP90HXDma.sys");
-            Certificates=Packaged?Path.Combine(Root,"driver","cert"):CertificatePolicy.SourceDirectory;
-            Core=Packaged?Path.Combine(Root,"core","nvpermissive-core.o"):Path.Combine(Root,"vendor","nvpermissive-dist-469dc0c","obj","nvpermissive-core.o");
+            DmaDriver=Path.Combine(Root,"driver","CMP90HXDma.sys");
+            Certificates=Path.Combine(Root,"driver","cert");
+            Core=Path.Combine(Root,"core","nvpermissive-core.o");
             Logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","Logs");
         }
         internal static string Hash(string path)
@@ -47,11 +47,11 @@ namespace CMP90HX.Control
         internal void Validate(bool requireCore,bool requireDma)
         {
             if(!File.Exists(Worker)) throw new FileNotFoundException("缺少硬件工作进程："+Worker);
-            if(Gen2Hash.Length!=64) throw new IOException("运行文件哈希尚未更新，请运行 update-release-hashes.ps1 后重新构建 GUI。");
+            if(Gen2Hash.Length!=64) throw new IOException("后端包策略尚未生成，请准备 backends 成品后重新构建 Console。");
             RequireHash(Worker,Gen2Hash);
             if(Packaged) {
                 var entries=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(Root,"files.sha256.json")));
-                foreach(string relative in new[]{"runtime/CMP90HXUnlocker.exe","runtime/CMP90HXUnlocker.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config"}) {
+                foreach(string relative in new[]{"runtime/CMP90HXUnlocker.exe","runtime/CMP90HXUnlocker.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config","CMP90HXBackground.exe","CMP90HXBackground.exe.config"}) {
                     if(entries==null || !entries.ContainsKey(relative)) throw new IOException("运行包清单缺少 "+relative);
                     RequireHash(Path.Combine(Root,relative.Replace('/',Path.DirectorySeparatorChar)),entries[relative]);
                 }
@@ -76,7 +76,7 @@ namespace CMP90HX.Control
         void WaitDisabled(string id);
         void Delay(int milliseconds);
         bool DriverInstalled();
-        void EnsureDriver(bool installIfMissing=true);
+        void EnsureDriver(bool installIfMissing=false);
         void CheckEnvironmentDependencies();
         int Run(params string[] args);
     }
@@ -90,7 +90,7 @@ namespace CMP90HX.Control
         public void WaitDisabled(string id) { NativePnp.WaitDisabled(id); }
         public void Delay(int milliseconds) { Thread.Sleep(milliseconds); }
         public bool DriverInstalled() { return DriverService.Installed(); }
-        public void EnsureDriver(bool installIfMissing=true) { CertificateManager.RequireInstalled(); DriverService.EnsureRunning(paths.DmaDriver,log,installIfMissing); }
+        public void EnsureDriver(bool installIfMissing=false) { CertificateManager.RequireInstalled(); DriverService.EnsureRunning(paths.DmaDriver,log,installIfMissing); }
         public void CheckEnvironmentDependencies()
         {
             bool[] installed=CertificateManager.Installed();
@@ -111,6 +111,10 @@ namespace CMP90HX.Control
         }
         public int Run(params string[] args)
         {
+            if(args.Length>0 && args[0]=="snapshot") {
+                int b=Array.IndexOf(args,"--bdf"),o=Array.IndexOf(args,"--out");if(b<0 || o<0)throw new IOException("Missing snapshot arguments.");
+                return SharedReader.Capture(paths,args[b+1],args[o+1],log);
+            }
             using(Process process=new Process { StartInfo=new ProcessStartInfo {
                 FileName=paths.Worker,Arguments=String.Join(" ",args.Select(Quote)),WorkingDirectory=paths.Root,
                 UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true,RedirectStandardError=true,
@@ -196,7 +200,7 @@ namespace CMP90HX.Control
                         return 0;
                     }
                     bool automatic=mode=="AutoUnlock",environment=mode=="Environment";
-                    if(mode=="Unlock" || automatic) log("GUI_UNLOCK_CORE=469dc0c timing="+(conservative?"conservative":"fast"));
+                    if(mode=="Unlock" || automatic) log("GUI_UNLOCK_BACKEND=Native timing="+(conservative?"conservative":"fast"));
                     if(environment || automatic) platform.CheckEnvironmentDependencies();
                     validate(mode=="Check" || mode=="Unlock" || environment || automatic,true);
                     if(mode=="Check") {
@@ -205,7 +209,7 @@ namespace CMP90HX.Control
                         log("Full-test inputs validated. No firmware-variable read, driver load, PnP change or GPU access performed.");
                         return 0;
                     }
-                    if(mode=="Install") { platform.EnsureDriver(); Require(Arena(),"DMA backend validation"); log("DMA_DRIVER_READY"); return 0; }
+                    if(mode=="Install") { SystemDmaProtection.RequireNative(log); platform.EnsureDriver(true); Require(Arena(),"DMA backend validation"); log("DMA_DRIVER_READY"); return 0; }
                     if(environment) {
                         Require(platform.Run("self-test"),"Managed self-tests");
                         Require(platform.Run("core-test","--core",paths.Core),"Pinned core mock tests");
@@ -226,7 +230,7 @@ namespace CMP90HX.Control
                         platform.EnsureDriver(false);
                         Verify(target,1,1); return 0;
                     }
-                    platform.EnsureDriver(); Require(Arena(),"DMA backend validation");
+                    SystemDmaProtection.RequireNative(log); platform.EnsureDriver(false); Require(Arena(),"DMA backend validation");
                     if(mode=="Preflight" || environment) {
                         Require(platform.Run("dma-test","--drivers",paths.Drivers,"--physical-dma-experiment","--log",Path.Combine(directory,"dma-test.log")),"DMA mapping test");
                         Require(platform.Run("bridge-probe","--drivers",paths.Drivers,"--bdf",target.Bdf,"--out",Path.Combine(directory,"unlock-status.json"),"--log",Path.Combine(directory,"bridge-probe.log")),"Read-only bridge preflight");

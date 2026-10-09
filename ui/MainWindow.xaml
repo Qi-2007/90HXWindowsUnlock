@@ -207,10 +207,11 @@
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
                     <TextBlock Text="CMP 90HX 解锁控制台" FontSize="24" FontWeight="SemiBold" ToolTip="项目仓库：https://github.com/Qi-2007/90HXWindowsUnlock" Cursor="Hand" MouseLeftButtonUp="OpenRepo"/>
-                    <TextBlock Text="Windows解锁驱动、证书和计划任务管理" Style="{StaticResource Caption}" Margin="0,3,0,0" />
+                    <TextBlock Text="Windows 解锁驱动与后台控制" Style="{StaticResource Caption}" Margin="0,3,0,0" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
-                <Button x:Name="UninstallButton" Content="一键卸载" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="UninstallButton_Click" ToolTip="卸载驱动、证书和计划任务，下次重启后清空程序数据目录。" />
+                <Button x:Name="UninstallButton" Content="一键卸载" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="UninstallButton_Click" ToolTip="卸载读取与解锁驱动、签名根证书。" />
+                <Button x:Name="SettingsButton" Content="设置" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="BackendSettingsButton_Click" />
                 <Border Background="#EDF5FC" CornerRadius="12" Padding="12,6" VerticalAlignment="Center">
                     <TextBlock x:Name="EnvironmentText" Text="Windows · x64" Foreground="#1763A0" FontSize="12" FontWeight="SemiBold" />
                 </Border>
@@ -238,11 +239,10 @@
                                 <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
                                 <TextBlock Text="PnP 状态" Style="{StaticResource Caption}" VerticalAlignment="Center" />
                                 <TextBlock x:Name="PnpText" Grid.Column="1" Text="测试" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock Grid.Row="1" Text="DMA 驱动" Style="{StaticResource Caption}" Margin="0,8,0,0" VerticalAlignment="Center" />
-                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.Column="1" Text="测试" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap" />
+                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.ColumnSpan="2" Text="测试" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap" />
                             </Grid>
                             <TextBlock x:Name="UpdatedText" Text="测试" Style="{StaticResource Caption}" />
-                            <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="35" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PrepareDriverButton_Click" ToolTip="查看并管理系统根证书和 DMA 驱动。" />
+                            <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="35" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PrepareDriverButton_Click" ToolTip="手动安装读取驱动和当前模式的解锁驱动。" />
                         </StackPanel>
                     </Border>
 
@@ -251,10 +251,8 @@
                             <TextBlock Text="操作" Style="{StaticResource SectionTitle}" />
                             <TextBlock Text="首次使用先进行环境检查。"
                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
-                            <Button x:Name="CheckButton" Content="环境检查" Style="{StaticResource ActionButton}" Click="CheckButton_Click" ToolTip="检查文件、核心、根证书、驱动安装状态、DMA 映射及只读硬件预检。" />
-                            <Button x:Name="TaskManagerButton" Content="计划任务管理" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="TaskManagerButton_Click" ToolTip="管理开机和睡眠唤醒自动解锁任务。" />
-                            <Button x:Name="PowerManagerButton" Content="空闲省电" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PowerManagerButton_Click" ToolTip="管理空闲 P8、负载阈值、全速应用例外和后台省电任务。" />
-                            <CheckBox x:Name="ConservativeTiming" Content="保守兼容模式（较慢）" Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" ToolTip="默认使用快速时序并检查设备就绪。需要长等待时可手动勾选；失败不会自动重试。" />
+                            <Button x:Name="CheckButton" Content="环境检查" Style="{StaticResource ActionButton}" Click="CheckButton_Click" ToolTip="检查系统内核 DMA 保护；开启时无法使用 Native 模式。" />
+                            <Button x:Name="PowerManagerButton" Content="空闲省电" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PowerManagerButton_Click" ToolTip="管理空闲 P8、负载阈值、全速应用例外和后台省电。" />
                             <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,10,0,0" Click="UnlockButton_Click" ToolTip="使用核心 469dc0c。默认快速时序；暂时停用显卡，恢复后验证一次。" />
                         </StackPanel>
                     </Border>

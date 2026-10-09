@@ -61,27 +61,28 @@
       <DependentUpon>MainWindow.xaml</DependentUpon>
     </Compile>
     <Compile Include="UnlockSnapshot.cs" />
-    <Compile Include="NativePnp.cs" />
-    <Compile Include="DriverService.cs" />
-    <Compile Include="NativeWorkflow.cs" />
-    <Compile Include="CertificateManager.cs" />
     <Compile Include="..\build\CertificatePolicy.cs" />
     <Compile Include="LogSession.cs" />
-    <Compile Include="TaskManagement.cs" />
     <Compile Include="ManagementWindow.cs" />
-    <Compile Include="NvidiaPowerApi.cs" />
-    <Compile Include="PowerControl.cs" />
-    <Compile Include="PowerTasks.cs" />
     <Compile Include="PowerWindow.cs" />
     <Compile Include="SharedSynchronization.cs" />
     <Compile Include="DesktopPresence.cs" />
     <Compile Include="StartupProgram.cs" />
-    <Compile Include="StartupSettings.cs" />
-    <Compile Include="RuntimeDeployment.cs" />
     <Compile Include="AssemblyInfo.cs" />
+    <Compile Include="FrontendFacades.cs" />
+    <Compile Include="BackendSettingsWindow.cs" />
+    <Compile Include="..\shared\ControlIpc.cs" />
+    <Compile Include="..\shared\PowerDtos.cs" />
+    <Compile Include="..\shared\BackendClient.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="icon.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\backend\CMP90HXBackground.csproj">
+      <Project>{D75909D3-8D37-4FC8-A9BA-A854B9B8B729}</Project>
+      <Name>CMP90HXBackground</Name><ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="GenerateCertificatePolicy" BeforeTargets="PrepareForBuild">

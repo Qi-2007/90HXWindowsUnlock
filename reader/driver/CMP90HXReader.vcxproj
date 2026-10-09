@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+ <ItemGroup Label="ProjectConfigurations"><ProjectConfiguration Include="Release|x64"><Configuration>Release</Configuration><Platform>x64</Platform></ProjectConfiguration></ItemGroup>
+ <PropertyGroup Label="Globals"><ProjectGuid>{CFEC29B7-E54B-4C90-8B42-4880E691E6EA}</ProjectGuid><ProjectName>CMP90HXReaderDriver</ProjectName><WindowsTargetPlatformVersion>10.0.28000.0</WindowsTargetPlatformVersion></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props"/>
+ <PropertyGroup Label="Configuration"><ConfigurationType>Driver</ConfigurationType><DriverType>WDM</DriverType><PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset><TargetVersion>Windows10</TargetVersion><DriverTargetPlatform>Desktop</DriverTargetPlatform><UseDebugLibraries>false</UseDebugLibraries></PropertyGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props"/>
+ <PropertyGroup><OutDir>$(MSBuildThisFileDirectory)..\..\build\reader-driver\</OutDir><IntDir>$(MSBuildThisFileDirectory)..\..\build\reader-driver-obj\</IntDir><TargetName>CMP90HXReader</TargetName><EnableInf2cat>false</EnableInf2cat><SignMode>Off</SignMode></PropertyGroup>
+ <ItemDefinitionGroup><ClCompile><WarningLevel>Level4</WarningLevel><TreatWarningAsError>true</TreatWarningAsError><BufferSecurityCheck>true</BufferSecurityCheck></ClCompile><Link><AdditionalDependencies>Wdmsec.lib;Cng.lib;%(AdditionalDependencies)</AdditionalDependencies><AdditionalOptions>/INTEGRITYCHECK %(AdditionalOptions)</AdditionalOptions></Link></ItemDefinitionGroup>
+ <ItemGroup><ClCompile Include="src\reader.c"/><ClCompile Include="src\caller_auth.c"/></ItemGroup>
+ <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets"/>
+</Project>

@@ -19,7 +19,7 @@ namespace CMP90HX.Control
         internal static IEnumerable<string> ActiveImages()
         {
             var files=new List<string>();
-            foreach(string name in new[]{"CMP90HXControl","CMP90HXUnlocker"})
+            foreach(string name in new[]{"CMP90HXControl","CMP90HXBackground","CMP90HXUnlocker"})
                 foreach(var process in Process.GetProcessesByName(name)) using(process) {
                     IntPtr handle=OpenProcess(0x1000,false,process.Id);
                     if(handle==IntPtr.Zero) {
@@ -74,9 +74,9 @@ namespace CMP90HX.Control
                     // Hold a lease that blocks new launches while allowing deletion of the marker.
                     using(var probe=new FileStream(Path.Combine(path,".in-use"),FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.Delete))
                         Directory.Delete(path,true);
-                    log("TASK_RUNTIME_REMOVED "+path);
-                } catch(IOException) {log("TASK_RUNTIME_RETAINED: 运行中或文件仍被使用，稍后清理 "+path);}
-                catch(UnauthorizedAccessException) {log("TASK_RUNTIME_RETAINED: 当前无法清理 "+path);}
+                    log("RUNTIME_REMOVED "+path);
+                } catch(IOException) {log("RUNTIME_RETAINED: 运行中或文件仍被使用，稍后清理 "+path);}
+                catch(UnauthorizedAccessException) {log("RUNTIME_RETAINED: 当前无法清理 "+path);}
             }
         }
     }
