@@ -60,7 +60,7 @@ namespace CMP90HX.Control
             }
             return false;
         }
-        internal static void Clean(string root,IEnumerable<string> references,Action<string> log)
+        internal static void Clean(string root,IEnumerable<string> references,Action<string> log,IEnumerable<string> candidates=null)
         {
             root=Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
             if(!Directory.Exists(root)) return;
@@ -68,6 +68,7 @@ namespace CMP90HX.Control
             var used=references.Where(s=>!String.IsNullOrWhiteSpace(s)).Select(s=>Path.GetFullPath(Environment.ExpandEnvironmentVariables(s.Trim('"')))).ToArray();
             foreach(string directory in Directory.GetDirectories(root)) {
                 string path=Path.GetFullPath(directory),prefix=path+Path.DirectorySeparatorChar;
+                if(candidates!=null && !candidates.Any(s=>String.Equals(Path.GetFullPath(s),path,StringComparison.OrdinalIgnoreCase))) continue;
                 if(!String.Equals(Path.GetDirectoryName(path),root,StringComparison.OrdinalIgnoreCase) || !Managed(path) || HasLink(path)) continue;
                 if(used.Any(s=>s.StartsWith(prefix,StringComparison.OrdinalIgnoreCase) || String.Equals(s,path,StringComparison.OrdinalIgnoreCase))) continue;
                 try {

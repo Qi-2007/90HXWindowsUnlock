@@ -41,8 +41,8 @@ namespace CMP90HX.Control {
         }
         internal static string CurrentState() {
             var packages=InstalledPackages();if(packages.Count==0)return "未安装";
-            try {RequireInstalled();return "已安装 · 解锁时临时接管，完成后恢复 NVIDIA";}
-            catch(IOException){return "已安装其他版本 · 请手动更新";}
+            try {RequireInstalled();return "已安装";}
+            catch(IOException){return "已安装其他版本，请手动更新";}
         }
         internal static void Install(Action<string> log) {
             BackendPackagePolicy.VerifySession(Package);CertificateManager.RequireInstalled();

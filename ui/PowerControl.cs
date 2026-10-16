@@ -20,7 +20,7 @@ namespace CMP90HX.Control
         {
             using(var deployment=new DeploymentLock()) {
                 var value=ReadSettings(Root);
-                if(!File.Exists(Path.Combine(Root,"settings.json")) && File.Exists(Path.Combine(Root,"Power","settings.json"))) {
+                if(File.Exists(Path.Combine(Root,"Power","settings.json"))) {
                     Prepare();WriteSettings(Root,value);
                 }
                 return value;
@@ -32,12 +32,16 @@ namespace CMP90HX.Control
             if(File.Exists(file)) {
                 var sections=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(file));object power;
                 if(sections==null) throw new IOException("配置文件无效。");
-                value=sections.TryGetValue("Power",out power)?json.ConvertToType<PowerSettings>(power):new PowerSettings();
+                value=sections.TryGetValue("Power",out power)?json.ConvertToType<PowerSettings>(power):ReadLegacySettings(root,json);
             } else {
                 file=Path.Combine(root,"Power","settings.json");
                 value=File.Exists(file)?json.Deserialize<PowerSettings>(File.ReadAllText(file)):new PowerSettings();
             }
             if(value==null) throw new IOException("省电配置无效。");value.Validate();return value;
+        }
+        static PowerSettings ReadLegacySettings(string root,JavaScriptSerializer json) {
+            string file=Path.Combine(root,"Power","settings.json");
+            return File.Exists(file)?json.Deserialize<PowerSettings>(File.ReadAllText(file)):new PowerSettings();
         }
         internal static PowerStatus ReadStatus()
         {return ReadStatus(Root);}
@@ -79,7 +83,7 @@ namespace CMP90HX.Control
         }
         static void Prepare()
         {if(!prepared) {DriverService.ProtectDirectory(Root);DriverService.ProtectDirectory(Path.Combine(Root,"State"));prepared=true;}}
-        static void Write(string directory,string name,object data)
+        internal static void Write(string directory,string name,object data)
         {
             string target=Path.Combine(directory,name);
             if(File.Exists(target) && (File.GetAttributes(target)&FileAttributes.ReparsePoint)!=0) throw new IOException("省电文件不能是符号链接。");

@@ -3,7 +3,7 @@ param([string]$MSBuild,[string]$SdkVersion='10.0.28000.0',[switch]$UpdatePinsOnl
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
 if(!$UpdatePinsOnly){$MSBuild=Resolve-BuildMSBuild $MSBuild}
-$out=Join-Path $PSScriptRoot 'build\reader-driver'
+$out=Join-Path $PSScriptRoot 'build\reader'
 New-Item -ItemType Directory -Path $out -Force | Out-Null
 if(!$UpdatePinsOnly) {
  & $MSBuild (Join-Path $PSScriptRoot 'reader\client\CMP90HXReader.csproj') /t:Build /m /p:Configuration=Release /p:Platform=x64 /verbosity:minimal

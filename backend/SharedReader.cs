@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 namespace CMP90HX.Control {
  internal static class SharedReader {
-  static string Package() {string root=AppDomain.CurrentDomain.BaseDirectory;string deployed=Path.Combine(root,"reader");return Directory.Exists(deployed)?deployed:Path.Combine(root,"reader-driver");}
+  static string Package() {return Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"reader");}
   internal static string Driver(RuntimePaths paths) {return Path.Combine(Package(),"CMP90HXReader.sys");}
   internal static string Client(RuntimePaths paths) {return Path.Combine(Package(),"CMP90HXReader.exe");}
   internal static void Ensure(RuntimePaths paths,Action<string> log,bool install=false) {

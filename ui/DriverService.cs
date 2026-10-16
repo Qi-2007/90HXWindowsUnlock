@@ -10,7 +10,7 @@ namespace CMP90HX.Control
 {
     internal static class DriverService
     {
-        const string Name="CMP90HXDma";
+        const string Name="CMP90HXUnlockNative";
         [StructLayout(LayoutKind.Sequential)] struct Status { internal uint Type,State,Controls,Win32Exit,ServiceExit,Checkpoint,WaitHint; }
         [StructLayout(LayoutKind.Sequential)] struct Config { internal uint Type,Start,Error; internal IntPtr Path,Group; internal uint Tag; internal IntPtr Dependencies,User,Display; }
         [DllImport("advapi32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr OpenSCManager(string machine,string database,uint access);
@@ -71,8 +71,8 @@ namespace CMP90HX.Control
                 try {
                     string path; if(ReadConfig(service,out path).Type!=1) throw new IOException("拒绝删除同名的非内核服务。");
                     bool active=Read(service).State!=1;
-                    if(!ChangeServiceConfig(service,uint.MaxValue,4,uint.MaxValue,null,null,IntPtr.Zero,null,null,null,null)) {if(Marshal.GetLastWin32Error()==1072){log("CMP90HXDma 已标记为删除，卸载已提交，重启后释放。");return;}throw Error("Disable CMP90HXDma");}
-                    if(!DeleteService(service) && Marshal.GetLastWin32Error()!=1072) throw Error("DeleteService CMP90HXDma");
+                    if(!ChangeServiceConfig(service,uint.MaxValue,4,uint.MaxValue,null,null,IntPtr.Zero,null,null,null,null)) {if(Marshal.GetLastWin32Error()==1072){log("CMP90HXUnlockNative 已标记为删除，卸载已提交，重启后释放。");return;}throw Error("Disable CMP90HXUnlockNative");}
+                    if(!DeleteService(service) && Marshal.GetLastWin32Error()!=1072) throw Error("DeleteService CMP90HXUnlockNative");
                     log(active?"DMA_DRIVER_UNINSTALL: 服务注册已移除；当前驱动不支持卸载，重启后生效。":"DMA_DRIVER_UNINSTALL: 驱动服务已卸载。");
                 } finally { CloseServiceHandle(service); }
             } finally { CloseServiceHandle(manager); }
@@ -101,7 +101,7 @@ namespace CMP90HX.Control
             return File.Exists(path) && String.Equals(RuntimePaths.Hash(path),expectedHash,StringComparison.OrdinalIgnoreCase);
         }
         internal static string StoreRoot {get {return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","DriverStore");}}
-        internal static string StoredDriver {get {return Path.Combine(StoreRoot,RuntimePaths.DmaHash,"CMP90HXDma.sys");}}
+        internal static string StoredDriver {get {return Path.Combine(StoreRoot,RuntimePaths.DmaHash,"CMP90HXUnlockNative.sys");}}
         internal static void CleanStore(string root,string keep,string active,Action<string> log)
         {
             root=Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar);
@@ -118,8 +118,8 @@ namespace CMP90HX.Control
                 var files=Directory.GetFiles(path);
                 if(Directory.GetDirectories(path).Length!=0 || Array.Exists(files,file=>
                     (File.GetAttributes(file)&FileAttributes.ReparsePoint)!=0 ||
-                    !(String.Equals(Path.GetFileName(file),"CMP90HXDma.sys",StringComparison.OrdinalIgnoreCase) ||
-                      String.Equals(Path.GetFileName(file),"CMP90HXDmaSigned.sys",StringComparison.OrdinalIgnoreCase)))) continue;
+                    !(String.Equals(Path.GetFileName(file),"CMP90HXUnlockNative.sys",StringComparison.OrdinalIgnoreCase) ||
+                      String.Equals(Path.GetFileName(file),"CMP90HXUnlockNativeSigned.sys",StringComparison.OrdinalIgnoreCase)))) continue;
                 try {foreach(string file in files) File.Delete(file);Directory.Delete(path);log("DMA_DRIVER_VERSION_REMOVED "+path);}
                 catch(IOException) {log("DMA_DRIVER_VERSION_RETAINED: 文件仍被使用，重启后再清理 "+path);}
                 catch(UnauthorizedAccessException) {log("DMA_DRIVER_VERSION_RETAINED: 当前无法清理 "+path);}
@@ -171,7 +171,7 @@ namespace CMP90HX.Control
             string storeRoot=Path.Combine(appRoot,"DriverStore");
             ProtectDirectory(storeRoot);
             string store=Path.Combine(storeRoot,RuntimePaths.DmaHash); ProtectDirectory(store);
-            string driver=Path.Combine(store,"CMP90HXDma.sys");
+            string driver=Path.Combine(store,"CMP90HXUnlockNative.sys");
             if(File.Exists(driver) && (File.GetAttributes(driver)&FileAttributes.ReparsePoint)!=0) throw new IOException("Driver file must not be a symbolic link.");
             if(!File.Exists(driver)) File.Copy(source,driver,false);
             RuntimePaths.RequireHash(driver,RuntimePaths.DmaHash);
@@ -184,12 +184,12 @@ namespace CMP90HX.Control
                     if(Marshal.GetLastWin32Error()!=1060) throw Error("OpenService");
                     if(!installIfMissing) throw new IOException("DMA_DRIVER_NOT_INSTALLED: 请在驱动管理中安装驱动后再读取解锁状态。");
                     service=CreateService(manager,Name,"CMP 90HX DMA",0x17,1,3,1,@"\??\"+driver,null,IntPtr.Zero,null,null,null);
-                    if(service==IntPtr.Zero) throw Error("CreateService CMP90HXDma");
+                    if(service==IntPtr.Zero) throw Error("CreateService CMP90HXUnlockNative");
                     log("DMA_DRIVER_INSTALLED path="+driver);
                 }
                 try {
                     string configured; Config config=ReadConfig(service,out configured);
-                    if(config.Type!=1) throw new IOException("CMP90HXDma service is not a kernel driver; refusing to replace it.");
+                    if(config.Type!=1) throw new IOException("CMP90HXUnlockNative service is not a kernel driver; refusing to replace it.");
                     string installed=NormalizeDriverPath(configured);
                     Status state=Read(service);
                     if(!String.Equals(installed,driver,StringComparison.OrdinalIgnoreCase)) {
@@ -200,21 +200,21 @@ namespace CMP90HX.Control
                             }
                             log("DMA_DRIVER_SAME_IMAGE_REUSED: SHA256 matches; service path retained.");
                         } else {
-                            if(!ChangeServiceConfig(service,uint.MaxValue,3,uint.MaxValue,@"\??\"+driver,null,IntPtr.Zero,null,null,null,null)) throw Error("ChangeServiceConfig CMP90HXDma");
+                            if(!ChangeServiceConfig(service,uint.MaxValue,3,uint.MaxValue,@"\??\"+driver,null,IntPtr.Zero,null,null,null,null)) throw Error("ChangeServiceConfig CMP90HXUnlockNative");
                             log("DMA_DRIVER_PATH_UPDATED (previous driver stopped)");
                         }
                     }
                     if(state.State!=4 && !StartService(service,0,IntPtr.Zero)) {
                         int error=Marshal.GetLastWin32Error();
-                        if(error!=1056) throw new Win32Exception(error,"CMP90HXDma start failed ("+error+"): "+new Win32Exception(error).Message);
+                        if(error!=1056) throw new Win32Exception(error,"CMP90HXUnlockNative start failed ("+error+"): "+new Win32Exception(error).Message);
                     }
                     for(int poll=0;poll<100;poll++) {
                         state=Read(service);
                         if(state.State==4) { log("DMA_DRIVER_RUNNING; retained for this Windows boot."); return; }
-                        if(state.State==1) throw new Win32Exception((int)state.Win32Exit,"CMP90HXDma stopped during start; Win32Exit="+state.Win32Exit);
+                        if(state.State==1) throw new Win32Exception((int)state.Win32Exit,"CMP90HXUnlockNative stopped during start; Win32Exit="+state.Win32Exit);
                         Thread.Sleep(100);
                     }
-                    throw new IOException("CMP90HXDma start timed out. Service retained for inspection.");
+                    throw new IOException("CMP90HXUnlockNative start timed out. Service retained for inspection.");
                 } finally { CloseServiceHandle(service); }
             } finally { CloseServiceHandle(manager); }
         }

@@ -11,10 +11,10 @@ namespace CMP90HX.Control {
             var json=ControlMemory.Json();var sections=json.Deserialize<Dictionary<string,object>>(File.ReadAllText(file));object value;
             if(sections==null) throw new IOException("settings.json 无效。");
             var result=sections.TryGetValue("Control",out value)?json.ConvertToType<ControlOptions>(value):new ControlOptions();
-            if(result==null) throw new IOException("Control 配置无效。");result.Validate();return result;
+            if(result==null) throw new IOException("Control 配置无效。");result.ReadUnlockOnConnect=false;result.Validate();return result;
         }
         internal static void Save(ControlOptions options) {
-            options.Validate();
+            options.ReadUnlockOnConnect=false;options.Validate();
             using(var gate=new DeploymentLock()) {
                 DriverService.ProtectDirectory(PowerStorage.Root);
                 string file=Path.Combine(PowerStorage.Root,"settings.json");

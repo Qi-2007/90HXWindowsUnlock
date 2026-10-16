@@ -12,9 +12,9 @@ namespace CMP90HX.Control
 {
     internal sealed class RuntimePaths
     {
-        internal const string Version="1.3.0";
-        internal const string ReaderHash="1BFEC88E65E9E72C370A01CD15EEA5DD7B752CB8E776C7EF619245CE8B6328C6";
-        internal const string ReaderClientHash="CC4F5704B1D0569902E9B363A3DCD5D4D72A60897668EF3917DEA17C5FB4EFCF";
+        internal const string Version="1.3.8";
+        internal const string ReaderHash="BA0EF1A246CCD54559DEF7C9FF05C0A40FED030B14093BA6EB38442FAC561978";
+        internal const string ReaderClientHash="BF147FEDF6A72FDE2F17E51118107B9B8E954B9CCD03A444696F9D88DF960691";
         // Generated from manually prepared local backend packages before compilation.
         internal const string Gen2Hash=BackendPackagePolicy.NativeWorker;
         internal const string DmaHash=BackendPackagePolicy.NativeDma;
@@ -27,11 +27,11 @@ namespace CMP90HX.Control
             // Build stages manually prepared backend packages beside the two Console executables.
             Root=directory;Packaged=true;
             Background=RuntimeDeployment.IsBackgroundDirectory(Root);
-            Worker=Path.Combine(Root,"runtime","CMP90HXUnlocker.exe");
-            Drivers=Path.Combine(Root,"drivers");
-            DmaDriver=Path.Combine(Root,"driver","CMP90HXDma.sys");
-            Certificates=Path.Combine(Root,"driver","cert");
-            Core=Path.Combine(Root,"core","nvpermissive-core.o");
+            Worker=Path.Combine(Root,"native","CMP90HXUnlocker.exe");
+            Drivers=Path.Combine(Root,"native");
+            DmaDriver=Path.Combine(Root,"native","CMP90HXUnlockNative.sys");
+            Certificates=Path.Combine(Root,"certificates");
+            Core=Path.Combine(Root,"native","nvpermissive-core.o");
             Logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"CMP90HX","Logs");
         }
         internal static string Hash(string path)
@@ -51,7 +51,7 @@ namespace CMP90HX.Control
             RequireHash(Worker,Gen2Hash);
             if(Packaged) {
                 var entries=new JavaScriptSerializer().Deserialize<Dictionary<string,string>>(File.ReadAllText(Path.Combine(Root,"files.sha256.json")));
-                foreach(string relative in new[]{"runtime/CMP90HXUnlocker.exe","runtime/CMP90HXUnlocker.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config","CMP90HXBackground.exe","CMP90HXBackground.exe.config"}) {
+                foreach(string relative in new[]{"native/CMP90HXUnlocker.exe","native/CMP90HXUnlocker.exe.config","CMP90HXControl.exe","CMP90HXControl.exe.config","CMP90HXBackground.exe","CMP90HXBackground.exe.config"}) {
                     if(entries==null || !entries.ContainsKey(relative)) throw new IOException("运行包清单缺少 "+relative);
                     RequireHash(Path.Combine(Root,relative.Replace('/',Path.DirectorySeparatorChar)),entries[relative]);
                 }
@@ -155,6 +155,8 @@ namespace CMP90HX.Control
             }
             if(snapshot.FunctionState(0x82381c,0x88888888,0x823820,8)!="已解锁" || snapshot.FunctionState(0x823830,4)!="已解锁")
                 throw new IOException("计算/图形解锁值未保持。");
+            if(snapshot.QuadroState()!="已设置")
+                throw new IOException("光追 / Quadro 源 override 未达目标值或无法读取；请使用配套的新后端和状态读取驱动。");
         }
         void Verify(GpuDevice target,int gpuWidth,int bridgeWidth)
         {
@@ -196,7 +198,7 @@ namespace CMP90HX.Control
                     if(!new[]{"Check","Status","Install","Preflight","Environment","AutoUnlock","Unlock","Verify"}.Contains(mode)) throw new ArgumentException("Unknown workflow.");
                     log("NATIVE_WORKFLOW_BEGIN mode="+mode);
                     if(mode=="Status" && !platform.DriverInstalled()) {
-                        log("UNLOCK_STATUS_DRIVER_NOT_INSTALLED: 尚未安装 CMP90HXDma，无法读取解锁状态。请先在驱动管理中安装驱动。");
+                        log("UNLOCK_STATUS_DRIVER_NOT_INSTALLED: 尚未安装 CMP90HXUnlockNative，无法读取解锁状态。请先在驱动管理中安装驱动。");
                         return 0;
                     }
                     bool automatic=mode=="AutoUnlock",environment=mode=="Environment";

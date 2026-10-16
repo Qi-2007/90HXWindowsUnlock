@@ -34,7 +34,7 @@ namespace CMP90HX.Control {
                     if(!owned) {DesktopPresence.TryActivate();Shutdown(0);return;}
                     BackendClient.Ensure(DisableAutoUnlock);
                     if(DisableAutoUnlock)BackendClient.Require("DisableAutomatic",null,null);
-                    var state=BackendClient.Read();DisableAutoUnlock|=state.AutoUnlockDisabled || !state.Options.ReadUnlockOnConnect;
+                    var state=BackendClient.Read();DisableAutoUnlock|=state.AutoUnlockDisabled;
                     var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);Directory.CreateDirectory(paths.Logs);Session=new LogSession(paths.Logs);
                 }
                 var window=new MainWindow();if(compact){window.Width=900;window.Height=680;}

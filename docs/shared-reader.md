@@ -1,6 +1,6 @@
 # 共用只读状态驱动
 
-Native 解锁仍由原 CMP90HXDma 负责，包括解锁事务内部的 PCI/MMIO 读写、复位和 DMA。Session 解锁仍使用临时 CMP90HXUnlockSession，完成后恢复 NVIDIA。
+Native 解锁仍由原 CMP90HXUnlockNative 负责，包括解锁事务内部的 PCI/MMIO 读写、复位和 DMA。Session 解锁仍使用临时 CMP90HXUnlockSession，完成后恢复 NVIDIA。
 
 两种方案的日常 Status/Verify、Session 自动解锁前查询及解锁后查询、Console 中 Native 解锁前后的外部状态快照，统一使用 CMP90HXReader。Native worker 内部事务采样保留，不能删除解锁过程依赖的内部读取。
 
@@ -18,12 +18,12 @@ Native 解锁仍由原 CMP90HXDma 负责，包括解锁事务内部的 PCI/MMIO 
 
 ## 构建、签名和测试
 
-交付位置固定为 Console 的 `build/reader-driver`：CMP90HXReader.exe、CMP90HXReader.sys。驱动源码在 reader/driver，客户端源码在 reader/client。
+交付位置固定为 Console 的 `build/reader`：CMP90HXReader.exe、CMP90HXReader.sys。驱动源码在 reader/driver，客户端源码在 reader/client。
 
 ```powershell
 cd E:\code\90HX\90HXWindowsUnlock\90HXWinUnlockConsole
 .\build-reader-driver.ps1
-# 使用自己的签名流程签 build\reader-driver\CMP90HXReader.sys。
+# 使用自己的签名流程签 build\reader\CMP90HXReader.sys。
 .\build-reader-driver.ps1 -UpdatePinsOnly
 # 若已有后台运行，先在管理员终端请求正常退出，并关闭前台：
 .\build\CMP90HXBackground.exe --request Shutdown
@@ -38,7 +38,7 @@ cd E:\code\90HX\90HXWindowsUnlock\90HXWinUnlockConsole
 安装之后，可先做单次只读采集，再测试两种方案的界面：
 
 ```powershell
-.\build\reader-driver\CMP90HXReader.exe --bdf 02:00.0 --out .\build\reader-status.json
+.\build\reader\CMP90HXReader.exe --bdf 02:00.0 --out .\build\reader-status.json
 ```
 
 核对锁定/解锁时的原始值、显示时间和 BDF；之后在实际睡眠唤醒、切换驱动和 NVIDIA 正常负载期间确认读取行为。不能将上次事务结果代替当前快照。

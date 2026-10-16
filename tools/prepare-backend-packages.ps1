@@ -9,10 +9,10 @@ $root=Split-Path -Parent $PSScriptRoot
 $native=Join-Path $root 'backends\native'
 $session=Join-Path $root 'backends\session'
 $inputs=[ordered]@{
- 'runtime/CMP90HXUnlocker.exe'=Join-Path $native 'CMP90HXUnlocker.exe'
- 'runtime/CMP90HXUnlocker.exe.config'=Join-Path $native 'CMP90HXUnlocker.exe.config'
- 'driver/CMP90HXDma.sys'=Join-Path $native 'CMP90HXDma.sys'
- 'core/nvpermissive-core.o'=Join-Path $native 'nvpermissive-core.o'
+ 'native/CMP90HXUnlocker.exe'=Join-Path $native 'CMP90HXUnlocker.exe'
+ 'native/CMP90HXUnlocker.exe.config'=Join-Path $native 'CMP90HXUnlocker.exe.config'
+ 'native/CMP90HXUnlockNative.sys'=Join-Path $native 'CMP90HXUnlockNative.sys'
+ 'native/nvpermissive-core.o'=Join-Path $native 'nvpermissive-core.o'
  'session/CMP90HXUnlocker.exe'=Join-Path $session 'CMP90HXUnlocker.exe'
  'session/CMP90HXUnlockSession.sys'=Join-Path $session 'CMP90HXUnlockSession.sys'
  'session/CMP90HXUnlockSession.inf'=Join-Path $session 'CMP90HXUnlockSession.inf'
@@ -28,20 +28,20 @@ foreach($key in $inputs.Keys) {
  $hashes[$key]=(Get-PackageFileHash -LiteralPath $file -Algorithm SHA256).Hash
 }
 # A SYS and its worker must be from the same backend build, independently of Console version.
-foreach($pair in @(@('driver/CMP90HXDma.sys','runtime/CMP90HXUnlocker.exe'),@('session/CMP90HXUnlockSession.sys','session/CMP90HXUnlocker.exe'))) {
+foreach($pair in @(@('native/CMP90HXUnlockNative.sys','native/CMP90HXUnlocker.exe'),@('session/CMP90HXUnlockSession.sys','session/CMP90HXUnlocker.exe'))) {
  $bytes=[Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($inputs[$pair[0]]))
  $policies=[regex]::Matches($bytes,'CMP90HX_CALLER_SHA256=([0-9A-F]{64})\x00')
  if($policies.Count -ne 1 -or $policies[0].Groups[1].Value -cne $hashes[$pair[1]]){throw "Mismatched SYS/worker package: $($pair[0]). Copy a matching pair; Console does not rebuild backends."}
 }
 if($RequireSigned) {
- foreach($key in @('driver/CMP90HXDma.sys','session/CMP90HXUnlockSession.sys','session/CMP90HXUnlockSession.cat')) {
+ foreach($key in @('native/CMP90HXUnlockNative.sys','session/CMP90HXUnlockSession.sys','session/CMP90HXUnlockSession.cat')) {
   if((Get-AuthenticodeSignature -LiteralPath $inputs[$key]).Status -ne 'Valid'){throw "Backend signature is not valid: $($inputs[$key])"}
  }
 }
-$nativeVersion=[Diagnostics.FileVersionInfo]::GetVersionInfo($inputs['runtime/CMP90HXUnlocker.exe']).FileVersion
+$nativeVersion=[Diagnostics.FileVersionInfo]::GetVersionInfo($inputs['native/CMP90HXUnlocker.exe']).FileVersion
 $sessionVersion=[Diagnostics.FileVersionInfo]::GetVersionInfo($inputs['session/CMP90HXUnlocker.exe']).FileVersion
 $lines=@('namespace CMP90HX.Control { internal static class BackendPackagePolicy {')
-foreach($entry in @(@('NativeWorker','runtime/CMP90HXUnlocker.exe'),@('NativeDma','driver/CMP90HXDma.sys'),@('NativeCore','core/nvpermissive-core.o'))) {
+foreach($entry in @(@('NativeWorker','native/CMP90HXUnlocker.exe'),@('NativeDma','native/CMP90HXUnlockNative.sys'),@('NativeCore','native/nvpermissive-core.o'))) {
  $lines+='internal const string '+$entry[0]+'="'+$hashes[$entry[1]]+'";'
 }
 $lines+='internal const string NativeVersion='+ (ConvertTo-Json -InputObject ([string]$nativeVersion) -Compress)+';'

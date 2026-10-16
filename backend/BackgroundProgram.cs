@@ -31,8 +31,7 @@ namespace CMP90HX.Control {
                     bool owned=false;try {
                         try {owned=singleton.WaitOne(0);} catch(AbandonedMutexException) {owned=true;}
                         if(!owned) {
-                            var wait=Stopwatch.StartNew();
-                            while(wait.ElapsedMilliseconds<15000) {try {BackendClient.Read();break;}catch(IOException){Thread.Sleep(100);}}
+                            BackendClient.Ensure(args.Contains("--disable-auto-unlock"));
                             if(args.Contains("--startup")) return BackendClient.Execute("Startup",args.Contains("--disable-auto-unlock")?"disabled":null).Code;
                             if(args.Contains("--notify-resume")) return BackendClient.Execute("Resume",args.Contains("--disable-auto-unlock")?"disabled":null).Code;
                             return 0;
@@ -54,14 +53,16 @@ namespace CMP90HX.Control {
         readonly object sync=new object(),logSync=new object();
         readonly ControlMemory memory;
         readonly BlockingCollection<IpcRequest> jobs=new BlockingCollection<IpcRequest>(32);
-        readonly ControlState state=new ControlState {Pid=Process.GetCurrentProcess().Id,Instance=Guid.NewGuid().ToString("N")};
+        readonly ControlState state=new ControlState {BackendRevision=ControlMemory.BackendRevision,Pid=Process.GetCurrentProcess().Id,Instance=Guid.NewGuid().ToString("N")};
         readonly RuntimePaths paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
         Thread worker;
         volatile bool stop,suspended;
         int powerReset=1,resumePending;
-        DateTime lastResume=DateTime.MinValue,nextStatus=DateTime.MinValue,lastPublish=DateTime.MinValue;
+        DateTime lastResume=DateTime.MinValue,lastPublish=DateTime.MinValue;
         NvidiaPowerApi api;PowerEngine engine;
         bool recover;
+        readonly LegacyPowerMigration legacyPower=new LegacyPowerMigration();
+        string migrationError;
         DateTime nextRecovery=DateTime.MinValue;
         LogSession session;IDisposable lease;
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate uint Notify(IntPtr context,uint type,IntPtr setting);
@@ -124,10 +125,7 @@ namespace CMP90HX.Control {
                             Execute(new IpcRequest {Id=Guid.NewGuid().ToString("N"),Command="RestoreNvidia"});
                         }
                         Telemetry();
-                        if(DateTime.UtcNow>=nextStatus && ReaderService.Installed() && state.Options.ReadUnlockOnConnect && !StartupSettings.AutoUnlockDisabled(disableAutomatic,PowerStorage.Root)) {
-                            nextStatus=DateTime.UtcNow.AddSeconds(30);
-                            Execute(new IpcRequest {Id=Guid.NewGuid().ToString("N"),Command="Status"});
-                        }
+
                     } catch(Exception error) {lock(sync) state.Error=error.Message;}
                     Thread.Sleep(750);
                 }
@@ -156,9 +154,11 @@ namespace CMP90HX.Control {
             try {
                 if(diagnostic) {
                     if(request.Command=="Echo")Append(request.Data??"");
-                    else if(request.Command=="StopDiagnostic")stop=true;
-                    else if(request.Command!="Ping")throw new IOException("诊断模式禁止硬件、配置操作。");
+                    else if(request.Command=="StopDiagnostic" || request.Command=="Shutdown")stop=true;
+                    else if(request.Command!="Ping" && request.Command!="RefreshDevices")throw new IOException("诊断模式禁止硬件、配置操作。");
                 } else {
+                    if(request.Command=="RefreshDevices") {RefreshDevices();return;}
+                    MigrateLegacyPower();
                     Reload();
                     string command=request.Command;
                     if(command=="Startup" || command=="Resume") {
@@ -189,11 +189,11 @@ namespace CMP90HX.Control {
                             RemoveUnlockDriver(previous);BackendConfig.Save(switched);Reload();
                             if(state.Options.Backend!=switched.Backend)throw new IOException("切换模式后配置校验失败。");
                             lock(sync){state.Snapshot=null;state.SnapshotUtc=null;state.UnlockState="模式已切换，请手动安装 "+switched.Backend+" 解锁驱动。";}
-                            Append("BACKEND_SWITCHED: "+previous+" -> "+state.Options.Backend+"; configuration saved; install unlock driver manually.");nextStatus=DateTime.MinValue;break;
+                            Append("BACKEND_SWITCHED: "+previous+" -> "+state.Options.Backend+"; configuration saved; install unlock driver manually.");break;
                         case "SetOptions":
                             var options=ControlMemory.Json().Deserialize<ControlOptions>(request.Data);if(options==null)throw new IOException("缺少配置。");options.Validate();
                             if(options.Backend!=state.Options.Backend) {RemoveUnlockDriver(state.Options.Backend);Append("BACKEND_CHANGED: previous unlock driver removed; install the selected driver manually.");}
-                            BackendConfig.Save(options);Reload();lock(sync){state.Snapshot=null;state.SnapshotUtc=null;state.UnlockState="配置更新后待读取";}nextStatus=DateTime.MinValue;break;
+                            BackendStartup.Update(options.StartOnBoot,paths,()=>BackendConfig.Save(options),Append);Reload();lock(sync){state.Snapshot=null;state.SnapshotUtc=null;state.UnlockState="配置更新后待读取";}break;
                         case "PowerEnable":
                             var settings=ControlMemory.Json().Deserialize<PowerSettings>(request.Data);if(settings==null)throw new IOException("缺少省电设置。");settings.Validate();
                             if(InspectorConflict.Running())throw new IOException("请先关闭 Inspector Multi Display Power Saver。");
@@ -201,12 +201,14 @@ namespace CMP90HX.Control {
                             settings.Enabled=true;PowerStorage.WriteSettings(settings);Reload();break;
                         case "Shutdown":stop=true;Append("BACKGROUND_SHUTDOWN_SAFE: queued operations complete before exit.");break;
                         case "PowerDisable":var disabled=PowerStorage.ReadSettings();disabled.Enabled=false;PowerStorage.WriteSettings(disabled);Reload();Append("POWER_SAVER_DISABLED");break;
+#if ENABLE_ROOT_CERTIFICATES
                         case "CertificatesInstall":CertificateManager.Install(paths,Append);break;
                         case "CertificatesRemove":CertificateManager.Uninstall(Append);break;
+#endif
                         case "ReaderInstall":
                             try {SharedReader.Ensure(paths,Append,true);}
                             catch(IOException signature) {
-                                if(signature.Message.Contains("0x800b0100"))throw new IOException("读取驱动尚未签名："+SharedReader.Driver(paths)+"。请先签名 build/reader-driver/CMP90HXReader.sys，运行 build-reader-driver.ps1 -UpdatePinsOnly 后重新编译 Console，再手动安装。",signature);
+                                if(signature.Message.Contains("0x800b0100"))throw new IOException("读取驱动尚未签名："+SharedReader.Driver(paths)+"。请先签名 build/reader/CMP90HXReader.sys，运行 build-reader-driver.ps1 -UpdatePinsOnly 后重新编译 Console，再手动安装。",signature);
                                 throw;
                             }break;
                         case "ReaderRemove":ReaderService.Uninstall(Append);break;
@@ -216,7 +218,12 @@ namespace CMP90HX.Control {
                             else {SessionDriverService.Install(Append);}break;
                         case "UnlockDriverRemove":RemoveUnlockDriver(state.Options.Backend);break;
                         case "UninstallAll":
-                            SessionDriverService.Uninstall(Append);DriverService.Uninstall(Append);ReaderService.Uninstall(Append);CertificateManager.Uninstall(Append);
+                            var withoutStartup=ControlMemory.Json().Deserialize<ControlOptions>(ControlMemory.Json().Serialize(state.Options));withoutStartup.StartOnBoot=false;
+                            BackendStartup.Update(false,paths,()=>BackendConfig.Save(withoutStartup),Append);
+                            SessionDriverService.Uninstall(Append);DriverService.Uninstall(Append);ReaderService.Uninstall(Append);
+#if ENABLE_ROOT_CERTIFICATES
+                            CertificateManager.Uninstall(Append);
+#endif
                             var powerOff=PowerStorage.ReadSettings();powerOff.Enabled=false;PowerStorage.WriteSettings(powerOff);stop=true;break;
                         case "Environment":
                             var dma=SystemDmaProtection.Check(Append);
@@ -233,13 +240,13 @@ namespace CMP90HX.Control {
                                 snapshot=File.ReadAllText(file);
                                 lock(sync) {state.Snapshot=snapshot;state.SnapshotUtc=DateTime.UtcNow;state.UnlockState="已采集";}
                             } else if(command=="Status" || command=="Unlock" || command=="AutoUnlock") lock(sync) {state.Snapshot=null;state.SnapshotUtc=null;state.UnlockState="未取得当前快照";}
-                            nextStatus=DateTime.UtcNow.AddSeconds(30);break;
+                            break;
                         default:throw new IOException("不支持的后台指令："+command);
                     }
                 }
             } catch(Exception failure) {error=failure.Message;code=1;Append("BACKGROUND_FAILED: "+failure);}
             finally {
-                if(!diagnostic)try {RefreshDevices();}catch(Exception metadata){Append("DEVICE_METADATA_UNAVAILABLE: "+metadata.Message);}
+                if(!diagnostic && request.Command!="RefreshDevices")try {RefreshDevices();}catch(Exception metadata){Append("DEVICE_METADATA_UNAVAILABLE: "+metadata.Message);}
                 lock(sync) {state.Error=error;Complete(request,code,error,snapshot,directory);state.Busy=false;}
                 try{Publish();}catch(IOException publication){Console.Error.WriteLine("IPC publication failed after hardware completion: "+publication.Message);}
             }
@@ -353,11 +360,9 @@ namespace CMP90HX.Control {
             lock(sync) state.PowerStatus=new PowerStatus {Policy="已暂停 · 等待硬件操作",HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
         }
         void Telemetry() {
+            MigrateLegacyPower();Reload();
             RefreshDevices();
             if(NativePnp.Enumerate().Any(IsSessionDevice)) {ReleasePower();return;}
-            using(var legacy=new PowerCoordination()) if(legacy.Running.WaitOne(0)) {
-                lock(sync)state.PowerStatus=new PowerStatus {Policy="等待迁移旧省电进程",Detail="在省电设置中重新保存设置，迁移到统一后台。",HeartbeatUtc=DateTime.UtcNow};return;
-            }
             using(var gate=new PowerHardwareGate()) {
                 try {
                     if(api==null) {api=new NvidiaPowerApi();engine=new PowerEngine(api,limited=>{recover=limited;PowerStorage.WriteStatus(new PowerStatus {LimitApplied=limited,HeartbeatUtc=DateTime.UtcNow});},recover);}
@@ -369,6 +374,19 @@ namespace CMP90HX.Control {
                     if(api!=null) {try {if(engine!=null)engine.Release();}finally{api.Dispose();api=null;engine=null;}}
                     lock(sync)state.PowerStatus=new PowerStatus {Policy="等待设备 / 驱动恢复",Detail=error.Message,HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
                 }
+            }
+        }
+        void MigrateLegacyPower() {
+            try {
+                if(legacyPower.Run(Append)) {
+                    var prior=PowerStorage.ReadStatus();recover=prior!=null && prior.LimitApplied;
+                    Interlocked.Exchange(ref powerReset,1);Reload();
+                }
+                migrationError=null;
+            } catch(Exception error) {
+                lock(sync)state.PowerStatus=new PowerStatus {Policy="旧省电迁移暂缓",Detail=error.Message,HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
+                if(migrationError!=error.Message) {migrationError=error.Message;Append("LEGACY_POWER_MIGRATION_FAILED: "+error.Message);}
+                throw;
             }
         }
         public void Dispose() {

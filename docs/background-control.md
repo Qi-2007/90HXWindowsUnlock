@@ -8,10 +8,11 @@
 {
   "Control": {
     "Backend": "Session",
+    "StartOnBoot": false,
     "ConservativeTiming": false,
     "UnlockOnStartup": true,
     "UnlockOnResume": true,
-    "ReadUnlockOnConnect": true
+    "ReadUnlockOnConnect": false
   }
 }
 ```
@@ -28,7 +29,13 @@ Read 驱动安装不检查内核 DMA 保护，仅检查文件、签名和服务�
 
 后台使用 PowerRegisterSuspendResumeNotification 监听睡眠唤醒。回调仅设置标志，工作线程按配置执行解锁，重复通知去重。注册失败会记录错误并显示在设置窗口，不创建替代调度任务。
 
-程序不再提供内置开机启动注册。外部启动后台时可带 `--startup`，后台按 UnlockOnStartup 和 Power 配置执行。普通启动不会直接解锁。原版本已创建的系统调度项不会被这一版代码自动清理，如存在请在 Windows 中手动移除。
+解锁状态只在手动点击“刷新解锁状态”或解锁完成验证时采集，不再启动时或定时自动采集。旧配置的 `ReadUnlockOnConnect` 字段保留兼容，但不再启用自动采集。
+
+设置窗口分为“解锁方式”和“后台自动操作”两张卡片。勾选“开机自启后台”并保存，会将完整运行包校验后复制到 ProgramData/CMP90HX/AutoUnlock 的受保护版本目录，注册 `CMP90HX Background` 开机任务，以 SYSTEM 身份运行 `CMP90HXBackground.exe --startup`。默认不注册。取消勾选并保存会移除该任务，当前后台继续运行；一键卸载也会移除该任务。任务更新或配置保存失败会显示错误，配置保存失败时尝试恢复原任务。
+
+“开机启动时自动解锁”与后台自启独立：未勾选自动解锁时，开机后台仍可按已保存的省电和唤醒设置工作。手动打开前台启动后台不附加 `--startup`，不会直接解锁。注册自启不会安装驱动或立即执行解锁。旧版本的自动解锁任务不在新任务的管理范围内。
+
+检测到旧版内置 `CMP90HXControl.exe --power-monitor` 或归属 `CMP90HX.Control` 的 `CMP90HX Idle Power Saver` 任务时，后台自动迁移：先保存原省电配置和迁移记录，再移除旧省电任务、临时停用旧控制器，等待它释放限制并退出，随后恢复原设置并接管。迁移中断会保留记录并自动重试。只清理已识别旧省电运行目录中不再被其他任务或进程引用的文件；保留配置、驱动和其他功能数据。不会清理 Inspector 或旧自动解锁任务。旧 `Power/settings.json` 与 `Power/status.json` 会迁移到统一配置及 State 目录，保留异常恢复所需的限制归属。
 
 ```powershell
 .\CMP90HXBackground.exe --startup
@@ -38,8 +45,12 @@ Read 驱动安装不检查内核 DMA 保护，仅检查文件、签名和服务�
 .\CMP90HXBackground.exe --request Shutdown
 ```
 
-Shutdown 在已提交操作完成后释放省电并退出。升级时先用旧版后台的 Shutdown 指令正常退出，再启动新版。IPC 协议版本为 2，拒绝连接旧版后台，硬件请求不会自动重发。
+Shutdown 在已提交操作完成后释放省电并退出。启动新版时检测到协议 2 的旧后台，会自动调用新版 `CMP90HXBackground.exe --request Shutdown`，等待旧进程实际退出后再启动新版后台。多个启动请求会串行处理；已经是当前版本则复用，检测到更新版本不会降级替换。退出超时或请求失败会报告原因，不会强制终止硬件操作或并行启动另一个后台。IPC 协议版本为 2，同时校验后台功能版本；硬件请求不会自动重发。升级后重新保存开机自启设置，将任务指向新版运行包。
 
-后台日志在 ProgramData/CMP90HX/Logs；前台日志在用户 LocalAppData/CMP90HX/FrontendLogs。一键卸载恢复性能，移除三种驱动及签名根证书，停止后台；保留配置与日志，不安排重启后清理。
+主窗口和驱动管理中的 Session 驱动正常安装时仅显示“已安装”，临时接管说明保留在驱动管理的说明区域。设置和驱动管理均保留与主窗口一致的水印，水印不拦截点击。
+
+后台日志在 ProgramData/CMP90HX/Logs；前台日志在用户 LocalAppData/CMP90HX/FrontendLogs。一键卸载恢复性能、移除三种驱动并停止后台；仅使用 -EnableRootCertificates 编译的版本会额外移除构建指定的根证书。保留配置与日志，不安排重启后清理。
 
 前后台及驱动包编译检查不能代替配套签名驱动的实机解锁、睡眠唤醒和 NVIDIA 负载验证。
+
+控制台启动时自动请求一次设备信息刷新，完成后显示当前 PnP、NVIDIA 接管及驱动安装状态。左侧“刷新”也会重新查询这些信息，不采集解锁寄存器，不启停显卡，不安装驱动。

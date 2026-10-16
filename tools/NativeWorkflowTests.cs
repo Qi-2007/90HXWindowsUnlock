@@ -42,7 +42,7 @@ namespace CMP90HX.Control
         public void CheckEnvironmentDependencies() { if(MissingDependencies) throw new IOException("mock missing certificate/driver"); }
         internal static string Json(bool bad)
         {
-            return "{\"Schema\":1,\"DeviceId\":571281630,\"GpuBdf\":512,\"Gpu\":{\"Status\":258},\"Bridge\":{\"Status\":258},\"Registers\":[{\"Offset\":8534044,\"Value\":2290649224},{\"Offset\":8534048,\"Value\":8},{\"Offset\":8534064,\"Value\":"+(bad?"0":"4")+"}]}";
+            return "{\"Schema\":1,\"DeviceId\":571281630,\"GpuBdf\":512,\"Gpu\":{\"Status\":258},\"Bridge\":{\"Status\":258},\"Registers\":[{\"Offset\":8534044,\"Value\":2290649224},{\"Offset\":8534048,\"Value\":8},{\"Offset\":8534024,\"Value\":59771016},{\"Offset\":8534064,\"Value\":"+(bad?"0":"4")+"}]}";
         }
         public int Run(params string[] args) {
             Commands.Add(args[0]);
@@ -158,6 +158,13 @@ namespace CMP90HX.Control
                 NativeWorkflow.ValidateVerified(snapshot,16,16);
                 bool rejected=false;try {NativeWorkflow.ValidateVerified(snapshot,32,16);}catch(IOException){rejected=true;}
                 Require(rejected,"link width loss is rejected");
+                var quadro=snapshot.Registers.Single(r=>r.Offset==0x823808);
+                quadro.Value=0;rejected=false;
+                try {NativeWorkflow.ValidateVerified(snapshot,16,16);}catch(IOException){rejected=true;}
+                Require(rejected,"missing Quadro target is rejected after unlock");
+                snapshot.Registers=snapshot.Registers.Where(r=>r.Offset!=0x823808).ToArray();rejected=false;
+                try {NativeWorkflow.ValidateVerified(snapshot,16,16);}catch(IOException){rejected=true;}
+                Require(rejected,"old reader without Quadro source cannot confirm the new unlock");
                 string[] tricky={"space value","quote\"value",@"C:\ends with slash\",""};
                 using(var proc=new Process {StartInfo=new ProcessStartInfo {FileName=Process.GetCurrentProcess().MainModule.FileName,Arguments="--echo "+String.Join(" ",tricky.Select(WindowsWorkflowPlatform.Quote)),UseShellExecute=false,CreateNoWindow=true,RedirectStandardOutput=true}}) {
                     proc.Start();string output=proc.StandardOutput.ReadToEnd();proc.WaitForExit();
@@ -197,9 +204,9 @@ namespace CMP90HX.Control
                 Require(RuntimeDeployment.IsBackgroundDirectory(background) && !RuntimeDeployment.IsBackgroundDirectory(Path.Combine(root,"1.2.2-0123456789abcdef")),"only managed background directories use the shared DriverStore");
                 string store=Path.Combine(root,"DriverStore");Directory.CreateDirectory(store);
                 string keep=Path.Combine(store,new string('A',64)),old=Path.Combine(store,new string('B',64)),active=Path.Combine(store,new string('C',64));
-                foreach(string dir in new[]{keep,old,active}) {Directory.CreateDirectory(dir);File.WriteAllText(Path.Combine(dir,"CMP90HXDma.sys"),"test image");}
+                foreach(string dir in new[]{keep,old,active}) {Directory.CreateDirectory(dir);File.WriteAllText(Path.Combine(dir,"CMP90HXUnlockNative.sys"),"test image");}
                 string unknown=Path.Combine(store,new string('D',64));Directory.CreateDirectory(unknown);File.WriteAllText(Path.Combine(unknown,"user.txt"),"keep");
-                DriverService.CleanStore(store,Path.Combine(keep,"CMP90HXDma.sys"),Path.Combine(active,"CMP90HXDma.sys"),s=>{});
+                DriverService.CleanStore(store,Path.Combine(keep,"CMP90HXUnlockNative.sys"),Path.Combine(active,"CMP90HXUnlockNative.sys"),s=>{});
                 Require(Directory.Exists(keep) && Directory.Exists(active) && !Directory.Exists(old) && Directory.Exists(unknown),"driver cleanup removes obsolete versions and preserves loaded images and unknown files");
             } finally {Directory.Delete(root,true);}
         }

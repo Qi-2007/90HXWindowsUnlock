@@ -15,3 +15,17 @@ if ($sample.FunctionState(@(0x823830, 4)) -ne '无法确认') { throw 'Missing f
 $sample.Gpu.Status=65535
 if ([CMP90HX.Control.UnlockSnapshot]::DescribeLink($sample.Gpu) -ne '无法读取') { throw 'All-ones link incorrectly accepted' }
 Write-Host 'GUI_STATUS_TESTS_PASSED (synthetic data only)'
+$quadro=[CMP90HX.Control.UnlockSnapshot+Register]::new()
+$quadro.Offset=0x823808
+$quadro.Value=0x03900888
+$sample.Registers=@($quadro)
+if($sample.QuadroState() -ne '已设置'){throw 'Quadro mask target rejected'}
+$quadro.Value=0x439048cc
+if($sample.QuadroState() -ne '已设置'){throw 'Quadro unrelated fields changed decoding'}
+foreach($value in @([uint32]0, [uint32]4294967295, [uint32]3135190560)) {
+ $quadro.Value=$value
+ if($sample.QuadroState() -eq '已设置'){throw 'Invalid or locked Quadro source accepted'}
+}
+$sample.Registers=@()
+if($sample.QuadroState() -ne '无法确认'){throw 'Old reader snapshot incorrectly claims Quadro status'}
+Write-Host 'QUADRO_STATUS_TESTS_PASSED (synthetic source override only)'

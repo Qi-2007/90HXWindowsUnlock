@@ -12,7 +12,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 | 命令 | 功能 |
 | --- | --- |
-| `.\build-dma-driver.ps1` | 构建/自测 Gen2、自动生成调用白名单并编译驱动，输出未签名的 `build\dma-driver\CMP90HXDma.sys` |
+| `.\build-dma-driver.ps1` | 构建/自测 Gen2、自动生成调用白名单并编译驱动，输出未签名的 `build\native-driver\CMP90HXUnlockNative.sys` |
 | `.\build-gen2.ps1` | 编译 Gen2、运行模拟自测、选择证书、签名、验证签名及再次自测 |
 | `.\build-gui.ps1` | 编译 GUI，使用当前源码里的运行文件哈希；完成后暂停供可选外部签名，回车可跳过 |
 | `.\build.ps1` | 只编译 Gen2 并运行模拟自测，不签名；供开发和现有工具使用 |
@@ -20,7 +20,7 @@ Set-ExecutionPolicy -Scope Process Bypass -Force
 
 编译脚本支持 `-Clean`，不删除整个 `build`，保留其他项目产物、证书和已签名驱动。驱动脚本额外按需构建/自测 Gen2；Visual Studio 直接构建驱动前先运行该脚本生成白名单。
 
-当前项目文件为 `src\CMP90HXUnlockProgram.csproj`、`ui\CMP90HXUnlockConsole.csproj` 和 `driver\CMP90HXDma.vcxproj`。工作进程统一使用 `CMP90HXUnlocker.exe`，编译、签名、GUI 调用和打包都使用这一个文件及其配置文件，不再生成兼容副本。
+当前项目文件为 `src\CMP90HXUnlockProgram.csproj`、`ui\CMP90HXUnlockConsole.csproj` 和 `driver\CMP90HXUnlockNative.vcxproj`。工作进程统一使用 `CMP90HXUnlocker.exe`，编译、签名、GUI 调用和打包都使用这一个文件及其配置文件，不再生成兼容副本。
 
 ## Gen2 签名证书（可选）
 
@@ -61,7 +61,7 @@ Windows 无法导入某些 PFX 容器编码时，脚本会尝试 OpenSSL 兼容�
 .\build-app.ps1
 ```
 
-该流程复用已有的 `build\dma-driver\CMP90HXDma.sys`。也可用 `-DriverPath` 选择已有签名驱动。先编译并自测 Gen2，暂停供可选签名，再校验驱动签名及其内置的调用白名单、更新 GUI 中的 Gen2/驱动哈希，最后编译 GUI。不要求 Gen2 签名。
+该流程复用已有的 `build\native-driver\CMP90HXUnlockNative.sys`。也可用 `-DriverPath` 选择已有签名驱动。先编译并自测 Gen2，暂停供可选签名，再校验驱动签名及其内置的调用白名单、更新 GUI 中的 Gen2/驱动哈希，最后编译 GUI。不要求 Gen2 签名。
 
 Gen2 改变后须执行完整发布，重新构建并签名匹配的驱动。仅修改 GUI 可复用已有匹配驱动；单独 `build-gui.ps1` 不自动构建 Gen2 或修改哈希。
 
@@ -77,7 +77,7 @@ Gen2 改变后须执行完整发布，重新构建并签名匹配的驱动。仅
 1. 重建 Gen2，运行模拟自测。
 2. 暂停等待可选 Gen2 签名：给 `build/CMP90HXUnlocker.exe` 原地签名后回车；也可不签名直接回车。签名必须保持可执行内容不变且验证有效；改变的最终文件会重新自测并更新验证记录，然后自动生成 `build/caller-policy.h`。`-NonInteractive` 自动跳过这一暂停。
 3. 重建 DMA 驱动，嵌入调用白名单，记录本次未签名 PE 的内容摘要。
-4. 等待你在外部给 `build/dma-driver/CMP90HXDma.sys` 原地签名，保持原文件名不变；也可在提示中输入其他完整路径。按 Enter 重新检查，输入 `q` 取消。
+4. 等待你在外部给 `build/native-driver/CMP90HXUnlockNative.sys` 原地签名，保持原文件名不变；也可在提示中输入其他完整路径。按 Enter 重新检查，输入 `q` 取消。
 5. 检查驱动签名有效，并确认其可执行内容与本次构建相同，拒绝误用旧签名文件。比较仅排除 Authenticode 校验和、证书表和必要的对齐填充。
 6. 从实际驱动二进制核对内置白名单与 Gen2 一致，自动更新运行文件哈希，编译 GUI。此时暂停，可给 `build/CMP90HXControl.exe` 签名后回车，也可不签名直接回车。继续后记录最终 GUI 哈希，运行工作流模拟测试、包验证和无窗口启动验证，再生成包含最终文件哈希的清单。签名不得改变 GUI 的可执行内容。
 7. 创建 `dist` 目录中的 ZIP、文件哈希清单及 ZIP 的 SHA-256 文件。
@@ -110,6 +110,6 @@ GUI 编译和完整发布默认读取仓库根目录的 `cert/`，必须有且�
 
 `build-gui.ps1`、`build-app.ps1`、`build-release.ps1`（含 `-PackageOnly`）以及会重建 GUI 的 `update-release-hashes.ps1` 都提供 GUI 签名暂停；使用 `-NonInteractive` 跳过。暂停时输入 `q` 可取消并保留已编译文件。
 
-PowerShell 源脚本统一保存为带 BOM 的 UTF-8，兼容 Windows PowerShell 5.1 的中文读取。构建入口同时统一控制台输入、输出与 `$OutputEncoding` 为 UTF-8，避免 MSBuild/工作进程改变代码页后被错误解码。发布文件名固定为 `CMP90HXUnlocker.exe` 和 `CMP90HXDma.sys`；签名不会修改文件名。自定义驱动路径使用 `-DriverPath`。
+PowerShell 源脚本统一保存为带 BOM 的 UTF-8，兼容 Windows PowerShell 5.1 的中文读取。构建入口同时统一控制台输入、输出与 `$OutputEncoding` 为 UTF-8，避免 MSBuild/工作进程改变代码页后被错误解码。发布文件名固定为 `CMP90HXUnlocker.exe` 和 `CMP90HXUnlockNative.sys`；签名不会修改文件名。自定义驱动路径使用 `-DriverPath`。
 
 `update-release-hashes.ps1` 保留旧入口；完整发布传入 `-SkipWorkerBuild`，避免改变已经编入驱动的 Gen2。`-RequireSignedWorker` 仍可选，但正常发布不使用。旧的程序签名参数在 `build-app.ps1` / `build-release.ps1` 中仅为调用兼容保留，不再执行签名。

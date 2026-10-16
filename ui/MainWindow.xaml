@@ -234,12 +234,18 @@
                                 <TextBlock x:Name="OverallText" Text="正在读取状态…" Foreground="#195FA0" FontWeight="SemiBold" TextWrapping="Wrap" />
                             </Border>
                             <TextBlock x:Name="GpuText" Text="正在检测" FontWeight="SemiBold" Margin="0,2,0,4" TextWrapping="Wrap" />
-                            <Grid Margin="0,0,0,5">
+                            <Grid Margin="0,4,0,8">
                                 <Grid.ColumnDefinitions><ColumnDefinition Width="72" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-                                <TextBlock Text="PnP 状态" Style="{StaticResource Caption}" VerticalAlignment="Center" />
-                                <TextBlock x:Name="PnpText" Grid.Column="1" Text="测试" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                <TextBlock x:Name="DriverText" Grid.Row="1" Grid.ColumnSpan="2" Text="测试" FontWeight="SemiBold" Margin="0,8,0,0" TextWrapping="Wrap" />
+                                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Text="PnP 状态" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                                <TextBlock x:Name="PnpText" Grid.Row="0" Grid.Column="1" Text="待读取" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock Grid.Row="1" Text="当前接管" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                                <TextBlock x:Name="DeviceDriverText" Grid.Row="1" Grid.Column="1" Text="待读取" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock Grid.Row="2" Text="解锁驱动" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                                <TextBlock x:Name="UnlockDriverText" Grid.Row="2" Grid.Column="1" Text="待读取" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock Grid.Row="3" Text="读取驱动" Style="{StaticResource Caption}" Margin="0,0,0,6" />
+                                <TextBlock x:Name="ReaderDriverText" Grid.Row="3" Grid.Column="1" Text="待读取" TextWrapping="Wrap" Margin="0,0,0,6" />
+                                <TextBlock x:Name="DriverText" Visibility="Collapsed" />
                             </Grid>
                             <TextBlock x:Name="UpdatedText" Text="测试" Style="{StaticResource Caption}" />
                             <Button x:Name="PrepareDriverButton" Content="驱动管理" Height="35" Padding="10,0" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PrepareDriverButton_Click" ToolTip="手动安装读取驱动和当前模式的解锁驱动。" />
@@ -268,10 +274,11 @@
                                 <Button x:Name="ReadUnlockButton" Content="刷新解锁状态" DockPanel.Dock="Right" HorizontalAlignment="Right" Height="30" Padding="12,0" Style="{StaticResource ActionButton}" Click="ReadUnlockButton_Click" ToolTip="确保统一驱动运行，采集一次快照；不申请 DMA 内存、不改变显卡启停状态。" />
                                 <TextBlock Text="显卡解锁状态" Style="{StaticResource SectionTitle}" />
                             </DockPanel>
-                            <UniformGrid Columns="3" Margin="0,0,0,10">
+                            <UniformGrid Columns="4" Margin="0,0,0,10">
                                 <StackPanel><TextBlock Text="PCIe 当前链路" Style="{StaticResource Caption}" /><TextBlock x:Name="LinkText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" TextWrapping="Wrap" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="计算功能" Style="{StaticResource Caption}" /><TextBlock x:Name="ComputeText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="图形功能" Style="{StaticResource Caption}" /><TextBlock x:Name="GraphicsText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
+                                <StackPanel Margin="10,0,0,0"><TextBlock Text="光追 / Quadro" Style="{StaticResource Caption}" /><TextBlock x:Name="QuadroText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" ToolTip="源 override 寄存器状态；未验证 DXR 正确性或光追性能。" /></StackPanel>
                             </UniformGrid>
                             <TextBlock x:Name="UnlockReadDetail" Text="启动后默认自动读取一次；功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
                             <Border Height="1" Background="#E3E8EF" Margin="0,0,0,12" />
@@ -322,7 +329,7 @@
             <DockPanel>
                 <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="12"
                TextWrapping="Wrap">
-        <Run Text="免费工具 · 禁止倒卖  |  驱动/GUI开发：" />
+        <Run Text="免费工具 · 禁止倒卖 | 驱动/GUI开发：" />
         <Hyperlink NavigateUri="https://github.com/Qi-2007"
                    RequestNavigate="Hyperlink_RequestNavigate"
                    Foreground="#4EA1FF" TextDecorations="{x:Null}">
@@ -333,6 +340,11 @@
                    RequestNavigate="Hyperlink_RequestNavigate"
                    Foreground="#4EA1FF" TextDecorations="{x:Null}">
             <Run Text="GreenDamTan" />
+        </Hyperlink>
+        <Hyperlink NavigateUri="https://github.com/WildFlash1st/cmp90hx-unlock-for-windows"
+                   RequestNavigate="Hyperlink_RequestNavigate"
+                   Foreground="#4EA1FF" TextDecorations="{x:Null}">
+            <Run Text="WildFlash1st" />
         </Hyperlink>
         <Run Text="| 解锁有风险，后果自负 | 遇到问题请在" />
         <Hyperlink NavigateUri="https://github.com/Qi-2007/90HXWindowsUnlock/issues"

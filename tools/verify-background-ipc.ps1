@@ -1,13 +1,18 @@
-﻿$ErrorActionPreference='Stop'
+﻿[CmdletBinding()]
+param([string]$BuildDirectory)
+$ErrorActionPreference='Stop'
+if(!$BuildDirectory){$BuildDirectory=Join-Path (Split-Path -Parent $PSScriptRoot) 'build'}
 if($PSVersionTable.PSEdition -eq 'Core') {
-    & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath
+    & "$env:WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -ExecutionPolicy Bypass -File $PSCommandPath -BuildDirectory $BuildDirectory
     exit $LASTEXITCODE
 }
 $previousDiagnostic=$env:CMP90HX_IPC_DIAGNOSTIC
 $env:CMP90HX_IPC_DIAGNOSTIC='1'
 $root=Split-Path -Parent $PSScriptRoot
-$exe=Join-Path $root 'build\CMP90HXBackground.exe'
-if(Get-Process CMP90HXBackground -ErrorAction SilentlyContinue){throw 'Existing backend found; refusing to interfere with a live hardware process.'}
+if(!$BuildDirectory){$BuildDirectory=Join-Path $root 'build'}
+$exe=[IO.Path]::GetFullPath((Join-Path $BuildDirectory 'CMP90HXBackground.exe'))
+# Diagnostic servers use a per-user Local namespace and reject hardware/config
+# commands, so they can be tested while a production Global backend is running.
 $assembly=[Reflection.Assembly]::LoadFile($exe)
 $flags=[Reflection.BindingFlags]'Instance,NonPublic'
 $type=$assembly.GetType('CMP90HX.Control.ControlMemory',$true)
@@ -35,13 +40,17 @@ try {
     }
     $after=State;if($after.Pid -ne $server.Id -or $after.Instance -ne $initial.Instance){throw 'Backend singleton changed.'}
     # Exercise the exact frontend assembly's client against the real shared mapping.
-    $front=[Reflection.Assembly]::LoadFile((Join-Path $root 'build\CMP90HXControl.exe'))
+    $front=[Reflection.Assembly]::LoadFile(([IO.Path]::GetFullPath((Join-Path $BuildDirectory 'CMP90HXControl.exe'))))
     foreach($name in @('NativePnp','WindowsWorkflowPlatform','NativeWorkflow','NvidiaPowerApi','PowerMonitor')) {
         if($front.GetType("CMP90HX.Control.$name",$false)){throw "Frontend still contains hardware implementation: $name"}
     }
     $client=$front.GetType('CMP90HX.Control.BackendClient',$true)
     $frontendState=$client.GetMethod('Read',[Reflection.BindingFlags]'Static,NonPublic').Invoke($null,@())
     if($frontendState.Pid -ne $server.Id){throw 'Frontend failed to attach to existing backend.'}
+    $refresh=$client.GetMethod('Execute',[Reflection.BindingFlags]'Static,NonPublic').Invoke($null,@('RefreshDevices',$null,$false,$null))
+    if($refresh.Code -ne 0){throw 'Device metadata refresh request failed.'}
+    $refreshed=$client.GetMethod('Read',[Reflection.BindingFlags]'Static,NonPublic').Invoke($null,@())
+    if($refreshed.Operation -ne 'RefreshDevices' -or $refreshed.Snapshot -ne $frontendState.Snapshot){throw 'Device refresh unexpectedly changed unlock status.'}
     $stop=Child '--request StopDiagnostic';$stop.Process.WaitForExit();if($stop.Process.ExitCode -ne 0){throw $stop.Error.Result}
     if(!$server.WaitForExit(5000)){throw 'Diagnostic server did not stop gracefully.'}
     'REAL_IPC_PASSED: 8 concurrent clients, single backend PID, frontend attaches, no GPU implementation in frontend, graceful exit; no hardware/configuration/task changes.'

@@ -4,7 +4,7 @@ using System.IO;
 namespace CMP90HX.Control {
     // These facades intentionally contain no PnP, driver, MMIO, NVAPI calls.
     internal sealed class RuntimePaths {
-        internal const string Version="1.3.0";
+        internal const string Version="1.3.8";
         internal readonly string Logs;
         internal RuntimePaths(string directory) {Logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CMP90HX","FrontendLogs");}
     }
@@ -12,6 +12,7 @@ namespace CMP90HX.Control {
         internal static void ProtectDirectory(string directory) {Directory.CreateDirectory(directory);}
         internal static string CurrentState() {return BackendClient.Read().DriverState;}
     }
+#if ENABLE_ROOT_CERTIFICATES
     internal static class CertificateManager {
         internal static string DisplayName {get{return CertificatePolicy.DisplayName;}}
         internal static readonly string[] Thumbprints={CertificatePolicy.Thumbprint};
@@ -19,6 +20,7 @@ namespace CMP90HX.Control {
         internal static void Install(RuntimePaths paths,Action<string> log) {BackendClient.Require("CertificatesInstall",null,log);}
         internal static void Uninstall(Action<string> log) {BackendClient.Require("CertificatesRemove",null,log);}
     }
+#endif
     internal static class PowerStorage {
         internal static PowerSettings ReadSettings() {return BackendClient.Read().Power;}
         internal static PowerStatus ReadStatus() {return BackendClient.Read().PowerStatus;}

@@ -8,7 +8,7 @@ Native、Session、Console 可以分别更新版本。先在各自项目中编�
     native/
       CMP90HXUnlocker.exe
       CMP90HXUnlocker.exe.config
-      CMP90HXDma.sys
+      CMP90HXUnlockNative.sys
       nvpermissive-core.o
     session/
       CMP90HXUnlocker.exe
@@ -20,9 +20,11 @@ Native、Session、Console 可以分别更新版本。先在各自项目中编�
 
 必须复制完整配套包，不能只替换 SYS：驱动含有对应 worker 的 SHA256 校验。若签名 worker，必须先签 EXE，再生成调用者策略、编译并签 SYS；Session 在签 SYS 后重新生成并签 CAT。Native 核心对象也应来自该 worker 对应的构建。
 
-Native 普通构建的 worker/config 在其 build 目录、SYS 在 build/dma-driver，核心在其选定核心输出位置。Session 成品在其 build/filter-driver。若使用 Native 源码核心构建，复制该构建生成的配套 worker/SYS/核心；在 Console 输入目录将所选核心统一命名为 nvpermissive-core.o。不同后端的同名 EXE 必须留在各自目录中。
+Native 普通构建的 worker/config 在其 build 目录、SYS 在 build/native-driver，核心在其选定核心输出位置。Session 成品在其 build/session-driver。Native 源码核心的 `tools/build-rebuilt-driver.ps1` 在测试包中直接输出 `nvpermissive-core.o`，复制该构建生成的配套 worker/SYS/核心到 Console 输入目录即可。核心中间产物名 `nvpermissive-rebuilt-hybrid.o` 不作为运行包文件名。不同后端的同名 EXE 必须留在各自目录中。
 
 ## Console 构建
+
+运行包与 build 输出统一使用 `native`、`session`、`reader` 三个组件目录，分别包含对应 EXE、SYS 及配套文件。只有使用 `-EnableRootCertificates` 编译时，才额外生成 `certificates` 并启用根证书 UI/功能。构建会删除旧的 core/driver/runtime/reader-driver 目录及组件目录中的旧版本文件。编译中间文件位于 `.build/obj`。
 
 ```powershell
 cd E:\code\90HX\90HXWindowsUnlock\90HXWinUnlockConsole

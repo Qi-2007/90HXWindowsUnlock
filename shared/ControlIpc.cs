@@ -12,10 +12,11 @@ namespace CMP90HX.Control {
     public sealed class ControlOptions {
         public string Backend {get;set;}
         public bool UnlockOnStartup {get;set;}
+        public bool StartOnBoot {get;set;}
         public bool UnlockOnResume {get;set;}
         public bool ReadUnlockOnConnect {get;set;}
         public bool ConservativeTiming {get;set;}
-        public ControlOptions() {Backend="Native";UnlockOnStartup=true;UnlockOnResume=true;ReadUnlockOnConnect=true;}
+        public ControlOptions() {Backend="Native";UnlockOnStartup=true;UnlockOnResume=true;ReadUnlockOnConnect=false;}
         public void Validate() {if(Backend!="Native" && Backend!="Session") throw new IOException("方案必须为 Native 或 Session。");}
     }
     public sealed class IpcRequest {
@@ -35,6 +36,8 @@ namespace CMP90HX.Control {
     }
     public sealed class ControlState {
         public int Protocol {get;set;}
+        public int BackendRevision {get;set;}
+        public bool RootCertificateSupport {get;set;}
         public int Pid {get;set;}
         public string Instance {get;set;}
         public DateTime Heartbeat {get;set;}
@@ -62,11 +65,17 @@ namespace CMP90HX.Control {
         public PowerSettings Power {get;set;}
         public PowerStatus PowerStatus {get;set;}
         public List<IpcResult> Results {get;set;}
-        public ControlState() {Protocol=2;Log="";DriverState="待读取";UnlockState="未读取";Results=new List<IpcResult>();Certificates=new[]{false};Options=new ControlOptions();Power=new PowerSettings();}
+        public ControlState() {Protocol=2;RootCertificateSupport=ControlMemory.RootCertificateSupport;Log="";DriverState="待读取";UnlockState="未读取";Results=new List<IpcResult>();Certificates=new bool[0];Options=new ControlOptions();Power=new PowerSettings();}
     }
     // All named objects are machine-wide and restricted to administrators and SYSTEM.
     // Separate request/state locks let telemetry continue while hardware work is running.
     internal sealed class ControlMemory : IDisposable {
+        internal const int BackendRevision=9;
+#if ENABLE_ROOT_CERTIFICATES
+        internal const bool RootCertificateSupport=true;
+#else
+        internal const bool RootCertificateSupport=false;
+#endif
         internal static string DiagnosticPrefix {get{return "Local\\CMP90HX.Control.Diagnostics."+WindowsIdentity.GetCurrent().User.Value+".";}}
         internal static Mutex OpenLock(string name,bool diagnostic) {
             if(!diagnostic)return SharedSynchronization.OpenMutex(name);

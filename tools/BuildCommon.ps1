@@ -13,11 +13,12 @@ function Get-BuildCertificate([string]$Directory) {
         return [pscustomobject]@{Path=$files[0].FullName;SourceDirectory=$files[0].DirectoryName;FileName=$files[0].Name;Hash=(Get-FileHash -LiteralPath $files[0].FullName -Algorithm SHA256).Hash;Thumbprint=$cert.Thumbprint;DisplayName=$cert.GetNameInfo([Security.Cryptography.X509Certificates.X509NameType]::SimpleName,$false)}
     } finally { $cert.Dispose() }
 }
-function Write-CertificatePolicy([string]$Directory) {
-    $cert=Get-BuildCertificate $Directory
+function Write-CertificatePolicy([string]$Directory,[switch]$EnableRootCertificates) {
+    $cert=$null
+    if($EnableRootCertificates){$cert=Get-BuildCertificate $Directory}
     $lines=@('namespace CMP90HX.Control { internal static class CertificatePolicy {')
     foreach ($name in @('FileName','Hash','Thumbprint','DisplayName','SourceDirectory')) {
-        $literal=ConvertTo-Json -InputObject ([string]$cert.$name) -Compress
+        $literal=ConvertTo-Json -InputObject ([string]$(if($cert){$cert.$name}else{''})) -Compress
         $lines+='internal const string '+$name+' = '+$literal+';'
     }
     $lines+='} }'
@@ -356,9 +357,9 @@ function Get-BuildPayloadHash([string]$Path) {
 }
 function Wait-BuildSignedDriver([string]$UnsignedPayloadHash,[string]$Path,[switch]$NonInteractive) {
     $root=Get-BuildRoot
-    if (!$Path) { $Path=Join-Path $root 'build\dma-driver\CMP90HXDma.sys' }
-    Write-Host 'Driver build finished. Sign build\dma-driver\CMP90HXDma.sys externally.'
-    Write-Host 'Sign CMP90HXDma.sys in place; keep its file name. A custom .sys path can also be entered below.'
+    if (!$Path) { $Path=Join-Path $root 'build\native-driver\CMP90HXUnlockNative.sys' }
+    Write-Host 'Driver build finished. Sign build\native-driver\CMP90HXUnlockNative.sys externally.'
+    Write-Host 'Sign CMP90HXUnlockNative.sys in place; keep its file name. A custom .sys path can also be entered below.'
     while ($true) {
         try {
             $Path=[IO.Path]::GetFullPath($Path)

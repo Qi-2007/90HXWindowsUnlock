@@ -81,23 +81,23 @@ namespace CMP90HX.Control
             if(startupInitialized) return;
             startupInitialized = true;
             AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查。\r\n旧日志已清理，本次操作记录会自动保存。\r\n");
-            RefreshStatus();
+            RefreshStatus(true);
             timer.Start();
-            if(App.DisableAutoUnlock) {
-                UnlockReadDetail.Text="已禁用启动自动读取；可点击“刷新解锁状态”手动采集。";
-                AppendLog("AUTO_UNLOCK_DISABLED: 已跳过启动自动读取；手动读取和手动解锁仍可用。\r\n");
-            } else if(!BackendClient.Read().Busy) await RunWorkflow("Status", "解锁状态");
+            UnlockReadDetail.Text="点击“刷新解锁状态”手动采集；解锁完成后将自动验证一次。";
         }
 
         void Window_Closing(object sender, CancelEventArgs e) { /* Backend owns in-flight work. */ }
 
-        async void RefreshStatus()
+        async void RefreshStatus(bool requestFresh=false)
         {
             if (refreshing || closed || App.PreviewState != null) return;
             refreshing = true;
             RefreshButton.IsEnabled = false;
             try {
-                DeviceStatus status = await Task.Run((Func<DeviceStatus>)ReadDeviceStatus);
+                DeviceStatus status = await Task.Run(()=> {
+                    if(requestFresh)BackendClient.Require("RefreshDevices",null,null);
+                    return ReadDeviceStatus();
+                });
                 if (closed) return;
                 GpuText.Text = status.Count > 1 ? "检测到 " + status.Count + " 张 90HX" : status.GpuName;
                 PnpText.Text = status.ProblemCode.HasValue
@@ -106,7 +106,9 @@ namespace CMP90HX.Control
                     : "未检测到当前设备";
                 DriverText.Text = status.DriverState;
                 DriverText.ToolTip="当前接管："+status.DeviceDriver+"\n解锁驱动："+status.UnlockDriverState+"\n读取驱动："+status.ReaderDriverState;
-                if(status.ProblemCode.HasValue)PnpText.Text+=" · "+status.DeviceDriver;
+                DeviceDriverText.Text=status.DeviceDriver??"待读取";
+                UnlockDriverText.Text=ShortState(status.UnlockDriverState);
+                ReaderDriverText.Text=ShortState(status.ReaderDriverState);
                 UpdatedText.Text = "状态更新于 " + DateTime.Now.ToString("HH:mm:ss");
                 if (status.Count == 0) SetBadge("未找到 CMP 90HX", "#FFF5E6", "#995E0C");
                 else if (status.Count != 1) SetBadge("需要唯一一张 90HX", "#FFF1F0", "#A83B32");
@@ -132,6 +134,7 @@ namespace CMP90HX.Control
             var state=BackendClient.Read();
             return new DeviceStatus {Count=state.DeviceCount,GpuName=state.GpuName,ProblemCode=state.ProblemCode,DriverState=state.DriverState,DeviceDriver=state.DeviceDriver,ReaderDriverState=state.ReaderDriverState,UnlockDriverState=state.Options.Backend=="Session"?state.SessionDriverState:state.NativeDriverState,Backend=state.Options.Backend};
         }
+        static string ShortState(string value) {return String.IsNullOrWhiteSpace(value)?"待读取":value.Split(new[]{'·','\r','\n'},StringSplitOptions.RemoveEmptyEntries)[0].Trim();}
         string observedJob;long observedRevision=-1;string observedLog="";
         void PollBackground()
         {
@@ -153,8 +156,9 @@ namespace CMP90HX.Control
                     LinkText.Text=UnlockSnapshot.DescribeLink(snapshot.Gpu);
                     ComputeText.Text=snapshot.FunctionState(0x82381c,0x88888888,0x823820,8);
                     GraphicsText.Text=snapshot.FunctionState(0x823830,4);
+                    QuadroText.Text=snapshot.QuadroState();
                     UnlockReadDetail.Text="后台采集于 "+(state.SnapshotUtc.HasValue?state.SnapshotUtc.Value.ToLocalTime().ToString("HH:mm:ss"):"未知")+" · "+state.UnlockState;
-                } else if(!busy && state.Snapshot==null) {LinkText.Text=ComputeText.Text=GraphicsText.Text="待读取";UnlockReadDetail.Text=state.UnlockState;}
+                } else if(!busy && state.Snapshot==null) {LinkText.Text=ComputeText.Text=GraphicsText.Text=QuadroText.Text="待读取";UnlockReadDetail.Text=state.UnlockState;}
             }catch(Exception error){UpdatedText.Text="后台通信中断";UpdatedText.ToolTip=error.Message;}
         }
         void BackendSettingsButton_Click(object sender,RoutedEventArgs e)
@@ -273,7 +277,7 @@ namespace CMP90HX.Control
             displayedStage = null;
             OperationNotice.Visibility = Visibility.Collapsed;
             if (mode == "Status" || mode == "Unlock") {
-                LinkText.Text = ComputeText.Text = GraphicsText.Text = "待读取";
+                LinkText.Text = ComputeText.Text = GraphicsText.Text = QuadroText.Text = "待读取";
                 UnlockReadDetail.Text = "等待本次采集；旧快照不代表当前状态。";
             }
             elapsed.Restart();
@@ -297,13 +301,13 @@ namespace CMP90HX.Control
                 if (mode == "Status" || mode == "Unlock" || mode == "Verify") {
                     string snapshot = Path.Combine(runDirectory, "unlock-status.json");
                     if (mode=="Status" && (runText.ToString().Contains("READER_DRIVER_NOT_INSTALLED") || runText.ToString().Contains("UNLOCK_STATUS_DRIVER_NOT_INSTALLED") || runText.ToString().Contains("DMA_DRIVER_NOT_INSTALLED"))) {
-                        LinkText.Text = ComputeText.Text = GraphicsText.Text = "未读取";
+                        LinkText.Text = ComputeText.Text = GraphicsText.Text = QuadroText.Text = "未读取";
                         UnlockReadDetail.Text = "尚未安装读取驱动。请在“驱动管理”中点击“安装读取驱动”。";
                         UnlockReadDetail.ToolTip = null;
                     }
                     else if (result == 0 && File.Exists(snapshot)) DisplayUnlockSnapshot(snapshot);
                     else {
-                        LinkText.Text = ComputeText.Text = GraphicsText.Text = "读取失败";
+                        LinkText.Text = ComputeText.Text = GraphicsText.Text = QuadroText.Text = "读取失败";
                         UnlockReadDetail.Text = "本次未取得有效快照，请查看日志。";
                     }
                 }
@@ -337,7 +341,7 @@ namespace CMP90HX.Control
             if(mode=="Status" && (output.Contains("UNLOCK_STATUS_DRIVER_NOT_INSTALLED") || output.Contains("DMA_DRIVER_NOT_INSTALLED"))) {
                 OperationTitle.Text = "解锁状态未读取";
                 OperationTitle.Foreground = (Brush)new BrushConverter().ConvertFromString("#667085");
-                OperationDetail.Text = "尚未安装 CMP90HXDma 驱动，请先在“驱动管理”中安装驱动。";
+                OperationDetail.Text = "尚未安装 CMP90HXUnlockNative 驱动，请先在“驱动管理”中安装驱动。";
                 FooterText.Text = "解锁状态 · 未安装驱动";
                 return;
             }
@@ -370,8 +374,8 @@ namespace CMP90HX.Control
             else if (output.Contains("DMA_DRIVER_UPDATE_REQUIRES_REBOOT"))
                 OperationDetail.Text = "旧 DMA 驱动仍在使用中。重启后打开“驱动管理”安装当前驱动。";
             else if (output.Contains("DMA_DRIVER_NOT_INSTALLED"))
-                OperationDetail.Text = "尚未安装 CMP90HXDma。打开“驱动管理”安装证书和驱动。";
-            else if (output.Contains("CMP90HXDma start failed"))
+                OperationDetail.Text = "尚未安装 CMP90HXUnlockNative。打开“驱动管理”安装证书和驱动。";
+            else if (output.Contains("CMP90HXUnlockNative start failed"))
                 OperationDetail.Text = "DMA 驱动启动失败。请查看日志中的系统错误码，并检查驱动签名及本次启动的签名策略。";
             else {
                 MatchCollection failures = Regex.Matches(output, @"(?m)(?:FAILED_STAGE[^\r\n]*|FAILED: [^\r\n]*|GUI_WORKFLOW_FAILED[^\r\n]*)");
@@ -394,7 +398,7 @@ namespace CMP90HX.Control
             if(result.Error!=null && !closed)AcceptOutput("BACKGROUND_FAILED: "+result.Error+"\r\n");
             await Dispatcher.InvokeAsync(delegate {},DispatcherPriority.Background);return result.Code;
         }
-        void RefreshButton_Click(object sender, RoutedEventArgs e) { RefreshStatus(); }
+        void RefreshButton_Click(object sender, RoutedEventArgs e) { RefreshStatus(true); }
         async void ReadUnlockButton_Click(object sender, RoutedEventArgs e) { await RunWorkflow("Status", "解锁状态"); }
 
         void DisplayUnlockSnapshot(string path)
@@ -403,6 +407,7 @@ namespace CMP90HX.Control
             LinkText.Text = UnlockSnapshot.DescribeLink(snapshot.Gpu);
             ComputeText.Text = snapshot.FunctionState(0x82381c, 0x88888888, 0x823820, 8);
             GraphicsText.Text = snapshot.FunctionState(0x823830, 4);
+            QuadroText.Text = snapshot.QuadroState();
             DateTime timestamp;
             string time = DateTime.TryParse(snapshot.TimestampUtc, out timestamp) ? timestamp.ToLocalTime().ToString("HH:mm:ss") : "时间未知";
             UnlockReadDetail.Text = "采集于 " + time + " · 上游桥 " + UnlockSnapshot.DescribeLink(snapshot.Bridge) + "。功能依据寄存器值；未进行负载测试。";
@@ -451,10 +456,12 @@ namespace CMP90HX.Control
             EnvironmentText.Text = "界面预览 · 示例数据";
             LinkText.Text = state == "success" ? "Gen2 ×16" : "待读取";
             ComputeText.Text = GraphicsText.Text = state == "success" ? "已解锁" : "无法确认";
+            QuadroText.Text = state == "success" ? "已设置" : "无法确认";
             UnlockReadDetail.Text = state == "success" ? "示例快照 · 上游桥 Gen2 ×16 · 功能依据寄存器值，未进行负载测试。" : "示例数据 · 本次尚未取得解锁后的有效快照。";
             GpuText.Text = "NVIDIA CMP 90HX";
             PnpText.Text = "已停用 · Code 22";
             DriverText.Text = "Session：已安装 · NVIDIA\n读取：运行中";
+            DeviceDriverText.Text="NVIDIA";UnlockDriverText.Text="已安装";ReaderDriverText.Text="运行中";
             UpdatedText.Text = "示例数据 · 未读取硬件";
             RefreshButton.IsEnabled = false;
             SetBadge("显卡已停用", "#FFF5E6", "#995E0C");

@@ -29,9 +29,9 @@ $cert.Thumbprint
 ```powershell
 $signTool = 'C:\Program Files (x86)\Windows Kits\10\bin\<SDK版本>\x64\signtool.exe'
 $thumbprint = '<证书指纹>'
-& $signTool sign /v /fd SHA256 /sm /s My /sha1 $thumbprint .\build\dma-driver\CMP90HXDma.sys
+& $signTool sign /v /fd SHA256 /sm /s My /sha1 $thumbprint .\build\native-driver\CMP90HXUnlockNative.sys
 if ($LASTEXITCODE -ne 0) { throw 'Signing failed' }
-Get-AuthenticodeSignature .\build\dma-driver\CMP90HXDma.sys
+Get-AuthenticodeSignature .\build\native-driver\CMP90HXUnlockNative.sys
 ```
 
 每次重新编译后重新签名。`/sha1` 用于按证书指纹选择证书，文件签名摘要为 SHA256。

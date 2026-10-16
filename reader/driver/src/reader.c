@@ -74,12 +74,16 @@ static NTSTATUS Capture(ULONG gpu,SNAPSHOT *result)
     result->Compute0=READ_REGISTER_ULONG((PULONG)((PUCHAR)registers+0x81c));
     result->Compute1=READ_REGISTER_ULONG((PULONG)((PUCHAR)registers+0x820));
     result->Graphics=READ_REGISTER_ULONG((PULONG)((PUCHAR)registers+0x830));
+    /* Extend the fixed 64-byte snapshot in its two reserved words.
+     * Flag bit1 distinguishes an old reader from a real zero value. */
+    result->Reserved[0]=READ_REGISTER_ULONG((PULONG)((PUCHAR)registers+0x808));
+    result->Reserved[1]=READ_REGISTER_ULONG((PULONG)((PUCHAR)registers+0x814));
     result->GpuLink=Pci(gpu,gcap+0x12,2);result->BridgeLink=Pci(bridge,bcap+0x12,2);
     result->AfterCommand=Pci(gpu,4,2);
     if(!Ready(gpu,bar) || Pci(bridge,0,4)!=bridgeId || Pci(bridge,0x18,4)!=bridgeBuses ||
         Cap(gpu,0x10)!=gcap || Cap(bridge,0x10)!=bcap || result->BeforeCommand!=result->AfterCommand ||
         READ_REGISTER_ULONG((PULONG)identity)!=boot || result->GpuLink>=0xffff || result->BridgeLink>=0xffff)goto done;
-    result->Flags=1;status=STATUS_SUCCESS;
+    result->Flags=3;status=STATUS_SUCCESS;
 done:
     if(registers)MmUnmapIoSpace(registers,PAGE_SIZE);
     MmUnmapIoSpace(identity,PAGE_SIZE);return status;

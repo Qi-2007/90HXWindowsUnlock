@@ -23,10 +23,15 @@ internal static class ReaderProgram {
             using(var handle=CreateFile(@"\\.\CMP90HXReader",0xc0000000,0,IntPtr.Zero,3,0,IntPtr.Zero)) {
                 if(handle.IsInvalid)throw new Win32Exception(Marshal.GetLastWin32Error(),"Open CMP90HXReader: signed driver and matching newly started client required.");
                 int bytes;if(!DeviceIoControl(handle,0x8338e000,BitConverter.GetBytes(bdf),4,output,output.Length,out bytes,IntPtr.Zero))throw new Win32Exception(Marshal.GetLastWin32Error(),"Read current unlock status");
-                if(bytes!=64 || Word(output,0)!=1 || Word(output,4)!=bdf || Word(output,12)!=1)throw new IOException("Reader protocol/target mismatch.");
+                if(bytes!=64 || Word(output,0)!=1 || Word(output,4)!=bdf || (Word(output,12)&1)==0)throw new IOException("Reader protocol/target mismatch.");
             }
             Func<int,object> reg=offset=>new {Offset=(uint)offset,Value=Word(output,offset==0x82381c?36:offset==0x823820?40:44),Error=(string)null};
-            var snapshot=new {Schema=1,DeviceId=0x220d10deu,GpuBdf=bdf,BridgeBdf=Word(output,8),TimestampUtc=DateTime.UtcNow.ToString("o"),Bar0=BitConverter.ToUInt64(output,16),Boot0=Word(output,24),Gpu=new{Status=Word(output,28)},Bridge=new{Status=Word(output,32)},Registers=new[]{reg(0x82381c),reg(0x823820),reg(0x823830)}};
+            var registers=new System.Collections.Generic.List<object>{reg(0x82381c),reg(0x823820),reg(0x823830)};
+            if((Word(output,12)&2)!=0) {
+                registers.Add(new {Offset=0x823808u,Value=Word(output,56),Error=(string)null});
+                registers.Add(new {Offset=0x823814u,Value=Word(output,60),Error=(string)null});
+            }
+            var snapshot=new {Schema=1,DeviceId=0x220d10deu,GpuBdf=bdf,BridgeBdf=Word(output,8),TimestampUtc=DateTime.UtcNow.ToString("o"),Bar0=BitConverter.ToUInt64(output,16),Boot0=Word(output,24),Gpu=new{Status=Word(output,28)},Bridge=new{Status=Word(output,32)},Registers=registers};
             string file=Path.GetFullPath(args[3]);Directory.CreateDirectory(Path.GetDirectoryName(file));File.WriteAllText(file,new JavaScriptSerializer().Serialize(snapshot));
             Console.WriteLine("UNLOCK_STATUS_CAPTURED provider=CMP90HXReader CPU-MMIO no-DMA");return 0;
         } catch(Exception error){Console.Error.WriteLine("READER_FAILED: "+error);return 1;}

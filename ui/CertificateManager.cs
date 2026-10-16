@@ -6,6 +6,7 @@ namespace CMP90HX.Control
 {
     internal static class CertificateManager
     {
+#if ENABLE_ROOT_CERTIFICATES
         internal static readonly string[] Names={CertificatePolicy.FileName};
         internal static readonly string[] Thumbprints={CertificatePolicy.Thumbprint};
         internal static string DisplayName { get { return CertificatePolicy.DisplayName; } }
@@ -61,5 +62,15 @@ namespace CMP90HX.Control
                 }
             }
         }
+#else
+        internal static readonly string[] Names=new string[0],Thumbprints=new string[0];
+        internal static string DisplayName { get { return ""; } }
+        internal static bool[] Installed() { return new bool[0]; }
+        internal static bool Ready() { return true; }
+        internal static void RequireInstalled() { }
+        internal static void ValidateFiles(RuntimePaths paths) { }
+        internal static void Install(RuntimePaths paths,Action<string> log) { throw new NotSupportedException("当前构建未启用根证书功能。"); }
+        internal static void Uninstall(Action<string> log) { throw new NotSupportedException("当前构建未启用根证书功能。"); }
+#endif
     }
 }
