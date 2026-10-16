@@ -1,9 +1,10 @@
 [CmdletBinding()]
-param([string]$MSBuild,[switch]$Clean,[string]$CertificateDirectory,[switch]$NonInteractive,[string]$OutputDirectory,[switch]$EnableRootCertificates)
+param([string]$MSBuild,[switch]$Clean,[string]$CertificateDirectory,[switch]$NonInteractive,[string]$OutputDirectory,[switch]$EnableRootCertificates,[switch]$RebuildReader)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
 $MSBuild=Resolve-BuildMSBuild $MSBuild
 Assert-BuildFramework -Gui
+Initialize-BuildReader -MSBuild $MSBuild -NonInteractive:$NonInteractive -RebuildReader:$RebuildReader
 $certificate=Write-CertificatePolicy $CertificateDirectory -EnableRootCertificates:$EnableRootCertificates
 if($certificate){$CertificateDirectory=Split-Path -Parent $certificate.Path}
 $rootCertificateProperty='/p:RootCertificateSupport='+$EnableRootCertificates.IsPresent.ToString().ToLowerInvariant()

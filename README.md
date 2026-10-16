@@ -106,7 +106,7 @@ PCIe 与解锁寄存器状态通过 **刷新解锁状态** 手动采集，解锁
 
 Console 使用 WPF 与 .NET Framework 4.8.1。准备 Visual Studio MSBuild 和对应 Developer Pack；重编 Reader 或解锁驱动时，还需匹配的 Windows SDK / WDK。
 
-先分别构建、签名 Native / Session 后端，将完整成品放入 `backends/native` 和 `backends/session`。Reader 也需完成构建、签名和哈希更新。Console 构建会验证这些输入，编译前后台，生成运行包。
+先分别构建、签名 Native / Session 后端，将完整成品放入 `backends/native` 和 `backends/session`。Console 构建时缺少 Reader 会自动编译；已有时询问是否重编。重编后按提示签名 SYS，脚本验证后自动更新哈希，再编译前后台、生成运行包。`-NonInteractive` 可复用已有 Reader，`-RebuildReader` 可强制重编。
 
 在本项目根目录运行：
 

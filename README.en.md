@@ -115,7 +115,7 @@ If you would like to join us and contribute to unlocking more features or improv
 
 The console uses WPF and .NET Framework 4.8.1. Install Visual Studio MSBuild and the corresponding Developer Pack. Rebuilding the Reader or unlock drivers also requires a matching Windows SDK / WDK.
 
-Build and sign the Native and Session backends separately, then place the complete packages in `backends/native` and `backends/session`. The Reader must also be built and signed, with its hashes updated. The console build validates these inputs, compiles the frontend and backend, and generates the runtime package.
+Build and sign the Native and Session backends separately, then place the complete packages in `backends/native` and `backends/session`. The console build automatically compiles the Reader if it is missing, or asks whether to rebuild an existing Reader. After compilation, sign the SYS as prompted; the script validates it and updates the final hashes before compiling the frontend and backend. Use `-NonInteractive` to reuse an existing Reader or `-RebuildReader` to force a rebuild.
 
 Run the following from this project's root directory:
 

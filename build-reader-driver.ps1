@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$MSBuild,[string]$SdkVersion='10.0.28000.0',[switch]$UpdatePinsOnly)
+param([string]$MSBuild,[string]$SdkVersion='10.0.28000.0',[switch]$UpdatePinsOnly,[switch]$SkipPinUpdate)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
 if(!$UpdatePinsOnly){$MSBuild=Resolve-BuildMSBuild $MSBuild}
@@ -14,7 +14,7 @@ if(!$UpdatePinsOnly) {
  $hash=(Get-FileHash -LiteralPath $client).Hash
  $bytes=@(0..31 | ForEach-Object {'0x'+$hash.Substring($_*2,2)}) -join ','
  [IO.File]::WriteAllText((Join-Path $PSScriptRoot 'build\reader-caller-policy.h'),("#define CMP_CALLER_SHA256_HEX `"$hash`"`r`n#define CMP_CALLER_SHA256_BYTES {$bytes}`r`n"),[Text.Encoding]::ASCII)
- & $MSBuild (Join-Path $PSScriptRoot 'reader\driver\CMP90HXReader.vcxproj') /t:Build /m /p:Configuration=Release /p:Platform=x64 "/p:WindowsTargetPlatformVersion=$SdkVersion" /verbosity:minimal
+ & $MSBuild (Join-Path $PSScriptRoot 'reader\driver\CMP90HXReader.vcxproj') /t:Rebuild /m /p:Configuration=Release /p:Platform=x64 "/p:WindowsTargetPlatformVersion=$SdkVersion" /verbosity:minimal
  if($LASTEXITCODE -ne 0){throw 'Reader driver build failed'}
 }
 $sys=Join-Path $out 'CMP90HXReader.sys'
@@ -22,6 +22,7 @@ $client=Join-Path $out 'CMP90HXReader.exe'
 $clientHash=(Get-FileHash -LiteralPath $client).Hash
 $driverBytes=[Text.Encoding]::ASCII.GetString([IO.File]::ReadAllBytes($sys))
 if(!$driverBytes.Contains('CMP90HX_CALLER_SHA256='+$clientHash)){throw 'Reader SYS/client caller policy mismatch'}
+if($SkipPinUpdate){Write-Host "Reader compiled: $sys. Sign SYS before updating Console pins.";return}
 $p=Join-Path $PSScriptRoot 'ui\NativeWorkflow.cs';$s=[IO.File]::ReadAllText($p)
 foreach($pin in @(@('ReaderHash',$sys),@('ReaderClientHash',$client))) {
  $pattern='internal const string '+$pin[0]+'="[0-9A-F]{64}";'
@@ -30,4 +31,5 @@ foreach($pin in @(@('ReaderHash',$sys),@('ReaderClientHash',$client))) {
 }
 [IO.File]::WriteAllText($p,$s,[Text.UTF8Encoding]::new($false))
 Get-FileHash -LiteralPath $sys,$client
-Write-Host 'Reader package ready; no driver loaded. Sign SYS, then run -UpdatePinsOnly and rebuild Console. Signing client requires rebuilding SYS.'
+if($UpdatePinsOnly){Write-Host 'Final Reader hashes updated. Rebuild Console to use these files.'}
+else{Write-Host 'Reader package ready; no driver loaded. Sign SYS, then run -UpdatePinsOnly and rebuild Console. Signing client requires rebuilding SYS.'}

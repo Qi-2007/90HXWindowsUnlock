@@ -2,6 +2,42 @@
 . (Join-Path $PSScriptRoot 'ConsoleEncoding.ps1')
 function Get-BuildRoot { Split-Path -Parent $PSScriptRoot }
 
+function Initialize-BuildReader([string]$MSBuild,[switch]$NonInteractive,[switch]$RebuildReader) {
+    $root=Get-BuildRoot
+    $directory=Join-Path $root 'build\reader'
+    $driver=Join-Path $directory 'CMP90HXReader.sys'
+    $client=Join-Path $directory 'CMP90HXReader.exe'
+    $rebuild=$RebuildReader.IsPresent -or !(Test-Path -LiteralPath $driver -PathType Leaf) -or !(Test-Path -LiteralPath $client -PathType Leaf)
+    if(!$rebuild -and !$NonInteractive) {
+        while($true) {
+            $reply=Read-Host 'Reader already exists. Rebuild it? [y/N] (q cancels)'
+            if($reply -eq 'q'){throw 'Build cancelled. Existing Reader files were preserved.'}
+            if($reply -eq '' -or $reply -eq 'n'){break}
+            if($reply -eq 'y'){$rebuild=$true;break}
+        }
+    }
+    if($rebuild) {
+        & (Join-Path $root 'build-reader-driver.ps1') -MSBuild $MSBuild -SkipPinUpdate
+    }
+    # Signing must finish before the final Reader hashes enter the Console.
+    $payload=Get-BuildPayloadHash $driver
+    if($rebuild){Write-Host "Reader compiled. Sign this file in place: $driver"}
+    while($true) {
+        try {
+            if((Get-BuildPayloadHash $driver) -ne $payload){throw 'Reader payload changed while signing. Rebuild Reader before continuing.'}
+            $signature=Get-AuthenticodeSignature -LiteralPath $driver
+            if($signature.Status -ne 'Valid'){throw "Reader driver signature is not valid: $($signature.Status)"}
+            break
+        } catch {
+            if($NonInteractive){throw ($_.Exception.Message+" Sign $driver, then rerun without -RebuildReader.")}
+            Write-Host $_.Exception.Message -ForegroundColor Yellow
+            $reply=Read-Host 'Sign Reader SYS in place, then press Enter to retry (q cancels)'
+            if($reply -eq 'q'){throw 'Build cancelled at Reader signing. Reader outputs were preserved.'}
+        }
+    }
+    & (Join-Path $root 'build-reader-driver.ps1') -UpdatePinsOnly
+}
+
 function Get-BuildCertificate([string]$Directory) {
     if (!$Directory) { $Directory=Join-Path (Get-BuildRoot) 'cert' }
     if (!(Test-Path -LiteralPath $Directory -PathType Container)) { throw "Certificate directory is missing: $Directory" }
