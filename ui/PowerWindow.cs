@@ -53,9 +53,10 @@ namespace CMP90HX.Control
             var controlsCard=new Border {Style=cardStyle,Child=controls,Margin=new Thickness(0,0,0,14)};Grid.SetRow(controlsCard,2);grid.Children.Add(controlsCard);
             logBox.IsReadOnly=true;logBox.FontFamily=new FontFamily("Cascadia Mono, Consolas");logBox.FontSize=12;logBox.Padding=new Thickness(0);logBox.BorderThickness=new Thickness(0);
             logBox.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));
-            logBox.Background=new SolidColorBrush(Color.FromRgb(16,26,42));logBox.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));logBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;logBox.TextWrapping=TextWrapping.Wrap;
-            var logFrame=new Border {Background=logBox.Background,CornerRadius=new CornerRadius(8),Padding=new Thickness(12),Child=logBox};Grid.SetRow(logFrame,3);grid.Children.Add(logFrame);
-            var surface=new Grid {Background=Background};surface.Children.Add(grid);
+            idle.Background=apps.Background=(Brush)FindResource("WhiteSurfaceBrush");
+            logBox.Background=Brushes.Transparent;logBox.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));logBox.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;logBox.TextWrapping=TextWrapping.Wrap;
+            var logFrame=new Border {Background=(Brush)FindResource("LogSurfaceBrush"),CornerRadius=new CornerRadius(8),Padding=new Thickness(12),Child=logBox};Grid.SetRow(logFrame,3);grid.Children.Add(logFrame);
+            var surface=new Grid {Background=(Brush)FindResource("WindowBackgroundBrush")};surface.Children.Add(grid);
             surface.Children.Add(new ContentControl {Content="Watermark",ContentTemplate=(DataTemplate)parent.FindResource("WatermarkTemplate"),IsHitTestVisible=false,Focusable=false,ClipToBounds=true,HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch});
             Content=surface;
             Loaded+=async(s,e)=> {

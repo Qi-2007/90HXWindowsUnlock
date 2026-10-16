@@ -51,7 +51,7 @@ namespace CMP90HX.Control
             var matches=(Registers??new Register[0]).Where(r=>r!=null && r.Offset==0x823808).ToArray();
             if(matches.Length!=1 || matches[0].Error!=null || !matches[0].Value.HasValue ||
                matches[0].Value==uint.MaxValue || (matches[0].Value&0xffff0000)==0xbadf0000) return "无法确认";
-            return (matches[0].Value&0x03900bbb)==0x03900888 ? "已设置" : "未达目标值";
+            return (matches[0].Value&0x03900bbb)==0x03900888 ? "已解锁" : "未达目标值";
         }
     }
 }

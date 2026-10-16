@@ -11,13 +11,13 @@ namespace CMP90HX.Control {
             WindowStartupLocation=WindowStartupLocation.CenterOwner;FontFamily=owner.FontFamily;FontSize=14;UseLayoutRounding=true;
             Background=new SolidColorBrush(Color.FromRgb(244,246,249));
             var state=preview?new ControlState():BackendClient.Read();var options=state.Options;
-            Foreground=owner.Foreground;var root=new DockPanel {Background=Background};
-            var surface=new Grid {Background=Background};surface.Children.Add(root);
+            Foreground=owner.Foreground;var root=new DockPanel();
+            var surface=new Grid {Background=(Brush)FindResource("WindowBackgroundBrush")};surface.Children.Add(root);
             surface.Children.Add(new ContentControl {Content="Watermark",ContentTemplate=(DataTemplate)owner.FindResource("WatermarkTemplate"),IsHitTestVisible=false,Focusable=false,ClipToBounds=true,HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch});Content=surface;
             var heading=new StackPanel {Margin=new Thickness(24,20,24,20)};
             heading.Children.Add(new TextBlock {Text="控制台设置",FontSize=24,FontWeight=FontWeights.SemiBold,Foreground=new SolidColorBrush(Color.FromRgb(24,37,54))});
             heading.Children.Add(new TextBlock {Text="解锁方案与后台自动操作",Foreground=Brushes.SlateGray,Margin=new Thickness(0,6,0,0)});
-            var header=new Border {Background=Brushes.White,BorderBrush=new SolidColorBrush(Color.FromRgb(227,232,239)),BorderThickness=new Thickness(0,0,0,1),Child=heading};
+            var header=new Border {Background=(Brush)FindResource("WhiteSurfaceBrush"),BorderBrush=new SolidColorBrush(Color.FromRgb(227,232,239)),BorderThickness=new Thickness(0,0,0,1),Child=heading};
             DockPanel.SetDock(header,Dock.Top);root.Children.Add(header);
             var footer=new StackPanel {Orientation=Orientation.Horizontal,HorizontalAlignment=HorizontalAlignment.Right,Margin=new Thickness(24,0,24,20)};
             var cancel=new Button {Content="取消",Style=(Style)owner.FindResource("ActionButton"),Width=80,Margin=new Thickness(0,0,10,0)};cancel.Click+=(s,e)=>Close();footer.Children.Add(cancel);

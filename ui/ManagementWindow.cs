@@ -26,8 +26,8 @@ namespace CMP90HX.Control {
             this.preview=preview;if(!preview)Owner=parent;Title="驱动管理";Width=700;Height=790;MinWidth=630;MinHeight=710;
             WindowStartupLocation=WindowStartupLocation.CenterOwner;FontFamily=parent.FontFamily;FontSize=14;UseLayoutRounding=true;
             Background=new SolidColorBrush(Color.FromRgb(244,246,249));
-            Foreground=parent.Foreground;var grid=new Grid {Margin=new Thickness(24),Background=Background};
-            var surface=new Grid {Background=Background};surface.Children.Add(grid);
+            Foreground=parent.Foreground;var grid=new Grid {Margin=new Thickness(24)};
+            var surface=new Grid {Background=(Brush)FindResource("WindowBackgroundBrush")};surface.Children.Add(grid);
             surface.Children.Add(new ContentControl {Content="Watermark",ContentTemplate=(DataTemplate)parent.FindResource("WatermarkTemplate"),IsHitTestVisible=false,Focusable=false,ClipToBounds=true,HorizontalContentAlignment=HorizontalAlignment.Stretch,VerticalContentAlignment=VerticalAlignment.Stretch});Content=surface;
             grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});grid.RowDefinitions.Add(new RowDefinition {Height=GridLength.Auto});grid.RowDefinitions.Add(new RowDefinition());
             var heading=new StackPanel {Margin=new Thickness(0,0,0,18)};
@@ -57,8 +57,8 @@ namespace CMP90HX.Control {
 #endif
             var card=new Border {Style=(Style)parent.FindResource("Card"),Child=body,Margin=new Thickness(0,0,0,16)};Grid.SetRow(card,1);grid.Children.Add(card);
             output.IsReadOnly=true;output.FontFamily=new FontFamily("Cascadia Mono, Consolas");output.FontSize=12;output.Padding=new Thickness(0);output.BorderThickness=new Thickness(0);
-            output.Background=new SolidColorBrush(Color.FromRgb(16,26,42));output.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));
-            output.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;output.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;output.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));var logFrame=new Border {Background=output.Background,CornerRadius=new CornerRadius(8),Padding=new Thickness(12),Child=output};Grid.SetRow(logFrame,2);grid.Children.Add(logFrame);
+            output.Background=Brushes.Transparent;output.Foreground=new SolidColorBrush(Color.FromRgb(215,228,244));
+            output.VerticalScrollBarVisibility=ScrollBarVisibility.Auto;output.HorizontalScrollBarVisibility=ScrollBarVisibility.Auto;output.Resources.Add(typeof(ScrollViewer),parent.FindResource("LogScrollViewer"));var logFrame=new Border {Background=(Brush)FindResource("LogSurfaceBrush"),CornerRadius=new CornerRadius(8),Padding=new Thickness(12),Child=output};Grid.SetRow(logFrame,2);grid.Children.Add(logFrame);
             Loaded+=async(s,e)=> {if(preview){Apply(new ControlState {ReaderDriverState="未安装",NativeDriverState="运行中",SessionDriverState="未安装"});foreach(var b in buttons)b.IsEnabled=false;if(App.SnapshotPath!=null)await Dispatcher.InvokeAsync(new Action(SavePreview),DispatcherPriority.ApplicationIdle);}else {await Refresh();timer.Start();}};
             timer.Tick+=async(s,e)=>{if(!busy)await Refresh();};Closed+=(s,e)=>{closed=true;timer.Stop();};Closing+=(s,e)=>{if(busy)e.Cancel=true;};
         }
@@ -67,7 +67,7 @@ namespace CMP90HX.Control {
             if(command!=null)button.Click+=async(s,e)=>await Operate(command,null);
             panel.Children.Add(button);buttons.Add(button);return button;
         }
-        void Apply(ControlState state) {selected=state.Options.Backend;modeLabel.Text="当前解锁方式："+selected;reader.Text="读取驱动（Read）："+(state.ReaderDriverState??"待读取");native.Text="Native 解锁驱动："+(state.NativeDriverState??"待读取");sessionDriver.Text="Session 解锁驱动："+ShortSessionState(state.SessionDriverState);
+        void Apply(ControlState state) {selected=state.Options.Backend;modeLabel.Text="当前解锁方式："+selected;reader.Text="Reader 读取驱动："+(state.ReaderDriverState??"待读取");native.Text="Native 解锁驱动："+(state.NativeDriverState??"待读取");sessionDriver.Text="Session 解锁驱动："+ShortSessionState(state.SessionDriverState);
 #if ENABLE_ROOT_CERTIFICATES
             certificate.Text="签名根证书："+(state.Certificates.Length>0 && state.Certificates[0]?"已安装":"未安装");
 #endif
@@ -76,7 +76,7 @@ namespace CMP90HX.Control {
         async Task Refresh() {if(refreshing || closed || preview)return;refreshing=true;try {var state=await Task.Run(()=>BackendClient.Read());if(!closed)Apply(state);}catch(Exception error){notice.Text=error.Message;}finally{refreshing=false;}}
         async Task Operate(string command,string data) {
             if(busy || preview)return;busy=true;foreach(var b in buttons)b.IsEnabled=false;output.Clear();notice.Text="操作正在执行…";
-            try {await Task.Run(()=>BackendClient.Require(command,data,line=>Dispatcher.BeginInvoke(new Action(()=>{if(!closed){output.AppendText(line+"\r\n");output.ScrollToEnd();}}))));notice.Text="操作已完成。已加载的 Native / Read 驱动卸载后需要重启生效。";}
+            try {await Task.Run(()=>BackendClient.Require(command,data,line=>Dispatcher.BeginInvoke(new Action(()=>{if(!closed){output.AppendText(line+"\r\n");output.ScrollToEnd();}}))));notice.Text="操作已完成。";}
             catch(Exception error){notice.Text=error.Message;output.AppendText(error.Message+"\r\n");}
             finally{busy=false;foreach(var b in buttons)b.IsEnabled=true;await Refresh();}
         }

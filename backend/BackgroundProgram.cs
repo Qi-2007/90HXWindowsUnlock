@@ -206,6 +206,7 @@ namespace CMP90HX.Control {
                         case "CertificatesRemove":CertificateManager.Uninstall(Append);break;
 #endif
                         case "ReaderInstall":
+                            CertificateManager.EnsureInstalled(paths,Append);
                             try {SharedReader.Ensure(paths,Append,true);}
                             catch(IOException signature) {
                                 if(signature.Message.Contains("0x800b0100"))throw new IOException("读取驱动尚未签名："+SharedReader.Driver(paths)+"。请先签名 build/reader/CMP90HXReader.sys，运行 build-reader-driver.ps1 -UpdatePinsOnly 后重新编译 Console，再手动安装。",signature);
@@ -214,8 +215,8 @@ namespace CMP90HX.Control {
                         case "ReaderRemove":ReaderService.Uninstall(Append);break;
                         case "UnlockDriverInstall":
                             if(request.Data!=state.Options.Backend)throw new IOException("解锁方式已改变，请重新确认安装。");
-                            if(state.Options.Backend=="Native") {SystemDmaProtection.RequireNative(Append);CertificateManager.RequireInstalled();DriverService.EnsureRunning(paths.DmaDriver,Append,true);}
-                            else {SessionDriverService.Install(Append);}break;
+                            if(state.Options.Backend=="Native") {SystemDmaProtection.RequireNative(Append);CertificateManager.EnsureInstalled(paths,Append);DriverService.EnsureRunning(paths.DmaDriver,Append,true);}
+                            else {CertificateManager.EnsureInstalled(paths,Append);SessionDriverService.Install(Append);}break;
                         case "UnlockDriverRemove":RemoveUnlockDriver(state.Options.Backend);break;
                         case "UninstallAll":
                             var withoutStartup=ControlMemory.Json().Deserialize<ControlOptions>(ControlMemory.Json().Serialize(state.Options));withoutStartup.StartOnBoot=false;

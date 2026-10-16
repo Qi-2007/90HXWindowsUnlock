@@ -4,6 +4,8 @@
 
 正式发布同样默认关闭根证书功能：`build-release.ps1 -NonInteractive`。启用时使用 `build-release.ps1 -NonInteractive -EnableRootCertificates`；`-PackageOnly` 必须与上次编译的选项一致。驱动签名验证不受此开关影响，默认版的一键卸载也不会操作系统根证书。
 
+启用根证书功能时，手动安装读取驱动、Native 或 Session 解锁驱动会先检查系统根证书；缺失时自动校验并安装随包的公开证书，已安装时直接继续。证书安装或安装后验证失败会中止驱动安装。只读状态查询和解锁操作不自动导入证书。
+
 在 Console 项目目录操作。Native/Session 的签名配套包放在 `backends/native` 与 `backends/session`，Console 构建自动计算哈希、检查 SYS/worker 配对并编译前后台，不会重编后端。
 
 Reader 位于本项目 `reader`，独立版本为 1.0.1.0，EXE/SYS 使用统一产品名 `CMP 90HX Windows Unlock`。修改客户端后须重建 SYS；签名客户端必须在生成驱动调用者哈希之前完成。

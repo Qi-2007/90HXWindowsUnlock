@@ -19,12 +19,12 @@ $quadro=[CMP90HX.Control.UnlockSnapshot+Register]::new()
 $quadro.Offset=0x823808
 $quadro.Value=0x03900888
 $sample.Registers=@($quadro)
-if($sample.QuadroState() -ne '已设置'){throw 'Quadro mask target rejected'}
+if($sample.QuadroState() -ne '已解锁'){throw 'Quadro mask target rejected'}
 $quadro.Value=0x439048cc
-if($sample.QuadroState() -ne '已设置'){throw 'Quadro unrelated fields changed decoding'}
+if($sample.QuadroState() -ne '已解锁'){throw 'Quadro unrelated fields changed decoding'}
 foreach($value in @([uint32]0, [uint32]4294967295, [uint32]3135190560)) {
  $quadro.Value=$value
- if($sample.QuadroState() -eq '已设置'){throw 'Invalid or locked Quadro source accepted'}
+ if($sample.QuadroState() -eq '已解锁'){throw 'Invalid or locked Quadro source accepted'}
 }
 $sample.Registers=@()
 if($sample.QuadroState() -ne '无法确认'){throw 'Old reader snapshot incorrectly claims Quadro status'}

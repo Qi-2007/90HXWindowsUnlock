@@ -19,20 +19,17 @@
 							 Stretch="None"
 							 Opacity="0.25">
 					<VisualBrush.Visual>
-						<Grid Width="260" Height="100">
-							<!-- 第一行：90HXWindowsUnlock -->
-                                <TextBlock Text="https://github.com/Qi-2007/90HXWindowsUnlock      "
+                        <Grid Width="260" Height="100">
+                            <TextBlock Text="https://github.com/Qi-2007/90HXWindowsUnlock      "
 									   FontSize="10" FontWeight="SemiBold" Foreground="#64748B"
 									   HorizontalAlignment="Center" VerticalAlignment="Top"
 									   Margin="0,30,0,0"
 									   RenderTransformOrigin="0.5,0.5">
-								<TextBlock.RenderTransform>
-									<RotateTransform Angle="-18" />
-								</TextBlock.RenderTransform>
-							</TextBlock>
-
-							<!-- 第二行：免费工具 · 禁止倒卖 -->
-							<TextBlock Text="免费工具 · 禁止倒卖"
+                                    <TextBlock.RenderTransform>
+                                        <RotateTransform Angle="-18" />
+                                    </TextBlock.RenderTransform>
+                            </TextBlock>
+                            <TextBlock Text="免费工具 · 禁止倒卖"
 									   FontSize="13" FontWeight="SemiBold" Foreground="#64748B"
 									   HorizontalAlignment="Center" VerticalAlignment="Bottom"
 									   Margin="0,0,0,30"
@@ -50,7 +47,7 @@
         <SolidColorBrush x:Key="AccentBrush" Color="#0067C0" />
         <SolidColorBrush x:Key="MutedBrush" Color="#64748B" />
         <Style x:Key="Card" TargetType="Border">
-            <Setter Property="Background" Value="White" />
+            <Setter Property="Background" Value="{StaticResource WhiteSurfaceBrush}" />
             <Setter Property="CornerRadius" Value="10" />
             <Setter Property="BorderBrush" Value="#E2E8F0" />
             <Setter Property="BorderThickness" Value="1" />
@@ -62,7 +59,7 @@
         <Style x:Key="ActionButton" TargetType="Button">
             <Setter Property="Height" Value="38" />
             <Setter Property="Padding" Value="18,0" />
-            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="Background" Value="{StaticResource WhiteSurfaceBrush}" />
             <Setter Property="BorderBrush" Value="#D4DDE8" />
             <Setter Property="Foreground" Value="#203047" />
             <Setter Property="FontWeight" Value="SemiBold" />
@@ -200,9 +197,9 @@
         </Style>
     </Window.Resources>
 
-    <Grid Background="#F4F6F9">
+    <Grid Background="{StaticResource WindowBackgroundBrush}">
         <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="*" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
-        <Border Grid.Row="0" Background="White" BorderBrush="#E3E8EF" BorderThickness="0,0,0,1" Padding="30,20">
+        <Border Grid.Row="0" Background="{StaticResource WhiteSurfaceBrush}" BorderBrush="#E3E8EF" BorderThickness="0,0,0,1" Padding="30,20">
             <Grid>
                 <Grid.ColumnDefinitions><ColumnDefinition Width="Auto" /><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
@@ -259,7 +256,7 @@
                                        Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Margin="0,4,0,6" />
                             <Button x:Name="CheckButton" Content="环境检查" Style="{StaticResource ActionButton}" Click="CheckButton_Click" ToolTip="检查系统内核 DMA 保护；开启时无法使用 Native 模式。" />
                             <Button x:Name="PowerManagerButton" Content="空闲省电" Style="{StaticResource ActionButton}" Margin="0,10,0,0" Click="PowerManagerButton_Click" ToolTip="管理空闲 P8、负载阈值、全速应用例外和后台省电。" />
-                            <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,10,0,0" Click="UnlockButton_Click" ToolTip="使用核心 469dc0c。默认快速时序；暂时停用显卡，恢复后验证一次。" />
+                            <Button x:Name="UnlockButton" Content="开始手动解锁" Style="{StaticResource PrimaryButton}" Margin="0,10,0,0" Click="UnlockButton_Click" ToolTip="此操作会暂时停用显卡。" />
                         </StackPanel>
                     </Border>
                 </StackPanel>
@@ -278,9 +275,9 @@
                                 <StackPanel><TextBlock Text="PCIe 当前链路" Style="{StaticResource Caption}" /><TextBlock x:Name="LinkText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" TextWrapping="Wrap" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="计算功能" Style="{StaticResource Caption}" /><TextBlock x:Name="ComputeText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
                                 <StackPanel Margin="10,0,0,0"><TextBlock Text="图形功能" Style="{StaticResource Caption}" /><TextBlock x:Name="GraphicsText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" /></StackPanel>
-                                <StackPanel Margin="10,0,0,0"><TextBlock Text="光追 / Quadro" Style="{StaticResource Caption}" /><TextBlock x:Name="QuadroText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" ToolTip="源 override 寄存器状态；未验证 DXR 正确性或光追性能。" /></StackPanel>
+                                <StackPanel Margin="10,0,0,0"><TextBlock Text="光线追踪" Style="{StaticResource Caption}" /><TextBlock x:Name="QuadroText" Text="未读取" FontSize="18" FontWeight="SemiBold" Margin="0,5,0,0" ToolTip="解锁后需要更新patch后的驱动程序以支持光线追踪。" /></StackPanel>
                             </UniformGrid>
-                            <TextBlock x:Name="UnlockReadDetail" Text="启动后默认自动读取一次；功能状态依据解锁寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
+                            <TextBlock x:Name="UnlockReadDetail" Text="功能状态读取自寄存器。" Style="{StaticResource Caption}" TextWrapping="Wrap" Margin="0,0,0,12" />
                             <Border Height="1" Background="#E3E8EF" Margin="0,0,0,12" />
                             <DockPanel>
                                 <TextBlock Text="执行进度" Style="{StaticResource SectionTitle}" DockPanel.Dock="Left" />
@@ -309,7 +306,7 @@
                                     <Button Content="打开目录" Style="{StaticResource ActionButton}" Padding="10,0" Height="30" Click="OpenLogsButton_Click" />
                                 </StackPanel>
                             </DockPanel>
-                            <Border Grid.Row="1" Background="#101A2A" CornerRadius="6" Padding="12">
+                            <Border Grid.Row="1" Background="{StaticResource LogSurfaceBrush}" CornerRadius="6" Padding="12">
                                 <TextBox x:Name="LogBox" Background="Transparent" Foreground="#D7E4F4" BorderThickness="0"
                                          FontFamily="Cascadia Mono, Consolas" FontSize="12" IsReadOnly="True" TextWrapping="NoWrap"
                                          VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" AutomationProperties.Name="当前操作日志">
@@ -325,7 +322,7 @@
                 </Grid>
             </Grid>
 
-        <Border Grid.Row="2" Background="White" BorderBrush="#E3E8EF" BorderThickness="0,1,0,0" Padding="30,11">
+        <Border Grid.Row="2" Background="{StaticResource WhiteSurfaceBrush}" BorderBrush="#E3E8EF" BorderThickness="0,1,0,0" Padding="30,11">
             <DockPanel>
                 <TextBlock Foreground="{StaticResource MutedBrush}" FontSize="12"
                TextWrapping="Wrap">

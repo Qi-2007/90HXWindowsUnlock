@@ -51,7 +51,7 @@ namespace CMP90HX.Control
             SizeChanged += delegate { SummaryCard.MaxHeight = Math.Max(190, ActualHeight - 480); };
             runtime = new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
             logs = App.Session!=null?App.Session.DirectoryPath:runtime.Logs;
-            EnvironmentText.Text = "v" + RuntimePaths.Version + " · 核心 469dc0c";
+            EnvironmentText.Text = "v" + RuntimePaths.Version;
             timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
             timer.Tick += Timer_Tick;
             Closed += delegate { closed = true; timer.Stop(); };
@@ -80,10 +80,10 @@ namespace CMP90HX.Control
             }
             if(startupInitialized) return;
             startupInitialized = true;
-            AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查。\r\n旧日志已清理，本次操作记录会自动保存。\r\n");
+            AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查，然后在驱动管理中安装所有驱动。\r\n旧日志已自动清理。\r\n");
             RefreshStatus(true);
             timer.Start();
-            UnlockReadDetail.Text="点击“刷新解锁状态”手动采集；解锁完成后将自动验证一次。";
+            UnlockReadDetail.Text="点击“刷新解锁状态”手动更新；解锁完成后会自动更新一次。";
         }
 
         void Window_Closing(object sender, CancelEventArgs e) { /* Backend owns in-flight work. */ }
@@ -150,7 +150,7 @@ namespace CMP90HX.Control
                     CheckButton.IsEnabled=UnlockButton.IsEnabled=ReadUnlockButton.IsEnabled=PrepareDriverButton.IsEnabled=!state.Busy;
                 }
                 var sample=state.PowerStatus==null?null:state.PowerStatus.Sample;
-                EnvironmentText.Text="v"+RuntimePaths.Version+" · "+state.Options.Backend+" · 后台 "+state.Pid+(sample==null?"":" · GPU "+sample.Gpu+"% · "+(sample.Watts.HasValue?sample.Watts.Value.ToString("0.0")+" W":"功耗待读取"));
+                EnvironmentText.Text="v"+RuntimePaths.Version+" Columbina · "+state.Options.Backend+(sample==null?"":" · GPU "+sample.Gpu+"% · "+(sample.Watts.HasValue?sample.Watts.Value.ToString("0.0")+" W":"功耗待读取"));
                 if(!busy && state.Snapshot!=null) {
                     var snapshot=UnlockSnapshot.Parse(state.Snapshot);
                     LinkText.Text=UnlockSnapshot.DescribeLink(snapshot.Gpu);
@@ -251,14 +251,14 @@ namespace CMP90HX.Control
         async void UninstallButton_Click(object sender, RoutedEventArgs e)
         {
             if(busy || App.PreviewState!=null) return;
-            if(MessageBox.Show(this,"将停止省电并恢复自动性能，卸载读取驱动、两种解锁驱动和签名根证书。已加载的驱动需要重启后完成卸载。完成后程序将退出，日志和配置保留。是否继续？",
+            if(MessageBox.Show(this, "将停止省电并恢复自动性能，卸载读取驱动、两种解锁驱动和签名根证书。已加载的驱动需要重启后完成卸载。完成后程序将退出，日志和配置保留，可以自行前往C:\\ProgramData删除CMP90HX文件夹。是否继续？",
                 "一键卸载",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes) return;
             SetBusy(true);
             OperationTitle.Text="正在卸载";
             OperationDetail.Text="正在恢复性能并移除驱动和证书。";
             try {
                 await Task.Run(()=>BackendClient.Require("UninstallAll",null,line=>Dispatcher.BeginInvoke(new Action(()=>AppendLog(line+"\r\n")))));
-                MessageBox.Show(this,"驱动和证书已卸载。请重启 Windows，使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
+                MessageBox.Show(this,"驱动和证书已卸载。请重启 Windows使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
                 SetBusy(false);
                 Application.Current.Shutdown(0);
             } catch(Exception error) {
@@ -334,22 +334,22 @@ namespace CMP90HX.Control
         {
             OperationNotice.Visibility = Visibility.Collapsed;
             string output = runText.ToString();
-            if(mode=="Environment") {OperationTitle.Text=result==0?"环境检查完成":"环境检查未通过";OperationDetail.Text=output.Contains("KERNEL_DMA_PROTECTION=ON")?"内核 DMA 保护已开启，无法使用 Native 模式；请选择 Session。":output.Contains("KERNEL_DMA_PROTECTION=OFF")?"内核 DMA 保护未开启。": "无法确认内核 DMA 保护状态，请查看日志并在 msinfo32 中检查。";FooterText.Text="环境检查 · "+(result==0?"完成":"未通过");return;}
+            if(mode=="Environment") {OperationTitle.Text=result==0?"环境检查完成":"环境检查未通过";OperationDetail.Text=output.Contains("KERNEL_DMA_PROTECTION=ON")?"内核 DMA 保护已开启，无法使用 Native 模式；请在设置中切换 Session 模式。":output.Contains("KERNEL_DMA_PROTECTION=OFF")?"内核 DMA 保护未开启，可以使用 Native 模式。": "无法确认内核 DMA 保护状态，请查看日志并在 msinfo32 中检查。";FooterText.Text="环境检查 · "+(result==0?"完成":"未通过");return;}
             if(mode=="Status" && output.Contains("READER_DRIVER_NOT_INSTALLED")) {
-                OperationTitle.Text="尚未安装共用状态读取驱动";OperationDetail.Text="请在驱动管理中安装已签名的 CMP90HXReader。此读取不需要 DMA 驱动。";FooterText.Text="解锁状态 · 未安装读取驱动";return;
+                OperationTitle.Text="尚未安装状态读取驱动";OperationDetail.Text="请在“驱动管理”中安装读取驱动。";FooterText.Text="解锁状态 · 未安装读取驱动";return;
             }
             if(mode=="Status" && (output.Contains("UNLOCK_STATUS_DRIVER_NOT_INSTALLED") || output.Contains("DMA_DRIVER_NOT_INSTALLED"))) {
                 OperationTitle.Text = "解锁状态未读取";
                 OperationTitle.Foreground = (Brush)new BrushConverter().ConvertFromString("#667085");
-                OperationDetail.Text = "尚未安装 CMP90HXUnlockNative 驱动，请先在“驱动管理”中安装驱动。";
+                OperationDetail.Text = "尚未安装 CMP90HXUnlockNative 驱动，请先在“驱动管理”中安装解锁驱动。";
                 FooterText.Text = "解锁状态 · 未安装驱动";
                 return;
             }
             if(output.Contains("SESSION_RECOVERY_REQUIRES_REBOOT")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="恢复 NVIDIA 需要重启";OperationDetail.Text="Session 的 DMA 状态尚未确认安全。本次操作已停止，请重启 Windows 后再试。";FooterText.Text="等待重启";return;}
-            if(output.Contains("SESSION_DRIVER_UPDATE_REQUIRES_REBOOT") || output.Contains("Driver binding requires reboot; no unlock IOCTL will be submitted.")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="Session 驱动更新需要重启";OperationDetail.Text=output.Contains("恢复记录已清除")?"本次未解锁，NVIDIA 已恢复。请重启 Windows 后再解锁，无需 session-restore。":"本次未解锁。请先检查 NVIDIA 和会话恢复记录，完成恢复后重启 Windows。";FooterText.Text="等待重启";return;}
+            if(output.Contains("SESSION_DRIVER_UPDATE_REQUIRES_REBOOT") || output.Contains("Driver binding requires reboot; no unlock IOCTL will be submitted.")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="Session 驱动更新需要重启";OperationDetail.Text=output.Contains("恢复记录已清除")?"本次未解锁，NVIDIA 已恢复。请重启 Windows 后再解锁。":"本次未解锁。请先检查 NVIDIA 和会话恢复记录，完成恢复后重启 Windows。";FooterText.Text="等待重启";return;}
             if(output.Contains("DMA_DRIVER_UPDATE_REQUIRES_REBOOT") || output.Contains("READER_DRIVER_UPDATE_REQUIRES_REBOOT")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="驱动更新需要重启";OperationDetail.Text="旧驱动仍在使用中。请重启 Windows，再到驱动管理中手动安装当前驱动后重试。";FooterText.Text="等待重启";return;}
-            if(output.Contains("NATIVE_DMA_PROTECTION_BLOCKED")) {OperationTitle.Text="无法使用 Native 模式";OperationDetail.Text="内核 DMA 保护已开启或状态无法确认，请在设置中选择 Session。";FooterText.Text="解锁未执行";return;}
-            if(output.Contains("SESSION_DRIVER_NOT_INSTALLED") || output.Contains("DMA_DRIVER_NOT_INSTALLED")) {OperationTitle.Text="尚未安装解锁驱动";OperationDetail.Text="请在驱动管理中点击“安装解锁驱动”，确认安装当前方式的驱动。";FooterText.Text="解锁未执行";return;}
+            if(output.Contains("NATIVE_DMA_PROTECTION_BLOCKED")) {OperationTitle.Text="无法使用 Native 模式";OperationDetail.Text="内核 DMA 保护已开启或状态无法确认，请在设置中选择 Session 模式。";FooterText.Text="解锁未执行";return;}
+            if(output.Contains("SESSION_DRIVER_NOT_INSTALLED") || output.Contains("DMA_DRIVER_NOT_INSTALLED")) {OperationTitle.Text="尚未安装解锁驱动";OperationDetail.Text="请在“驱动管理”中点击“安装解锁驱动”，确认安装当前方式的驱动。";FooterText.Text="解锁未执行";return;}
             bool disabledOnly = output.Contains("FULL_UNLOCK_VERIFIED_WHILE_DISABLED_ONLY");
             bool verified = output.Contains("FULL_UNLOCK_VERIFIED_AFTER_NVIDIA_REATTACH");
             bool confirmed = mode == "Install" ? output.Contains("DMA_DRIVER_READY") || output.Contains("SESSION_DRIVER_PACKAGE_READY") : mode == "Status" ? output.Contains("UNLOCK_STATUS_CAPTURED") :
@@ -361,7 +361,7 @@ namespace CMP90HX.Control
                 OperationDetail.Text = disabledOnly
                     ? "停用状态下验证通过。启用显卡后，点击“刷新解锁状态”检查 NVIDIA 接管结果。"
                     : verified ? "采样验证通过：PnP Code 0、两端 Gen2、链路宽度与解锁值保持。"
-                    : output.Contains("SESSION_UNLOCK_COMPLETE") ? "Session 解锁流程成功，NVIDIA 驱动已恢复；当前状态见共用读取驱动的最新快照。" : mode == "Install" ? (output.Contains("SESSION_DRIVER_PACKAGE_READY")?"Session 签名驱动包已就绪，仅在执行解锁时临时绑定。":"已签名 DMA 驱动已安装并启动，协议检查通过。") : mode == "Status" ?
+                    : output.Contains("SESSION_UNLOCK_COMPLETE") ? "Session 解锁流程成功，NVIDIA 驱动已恢复；当前状态见读取驱动的最新快照。" : mode == "Install" ? (output.Contains("SESSION_DRIVER_PACKAGE_READY")?"Session 驱动包已就绪，仅在执行解锁时临时绑定。":"DMA 驱动已安装并启动，协议检查通过。") : mode == "Status" ?
                       (output.Contains("UNLOCK_STATUS_VERIFIED") ? "状态已更新：PnP Code 0、两端 Gen2、计算与图形解锁值符合预期。" : "状态已更新，部分条件未达到完整解锁要求；请查看各项状态。")
                     : "系统内核 DMA 保护检查通过。";
                 FooterText.Text = label + " · 成功";
@@ -370,13 +370,13 @@ namespace CMP90HX.Control
             OperationTitle.Text = result == 0 ? label + "结果待确认" : label + "未通过";
             OperationTitle.Foreground = (Brush)new BrushConverter().ConvertFromString("#A83B32");
             if (output.Contains("DMA_RETAINED") || output.Contains("QUARANTINED"))
-                OperationDetail.Text = "DMA 所有权未释放。保持显卡停用，完全关机后重新开机，再启动驱动；不要直接重试。";
+                OperationDetail.Text = "DMA 所有权未释放。请完全关机后重新开机再重试。";
             else if (output.Contains("DMA_DRIVER_UPDATE_REQUIRES_REBOOT"))
-                OperationDetail.Text = "旧 DMA 驱动仍在使用中。重启后打开“驱动管理”安装当前驱动。";
+                OperationDetail.Text = "旧 DMA 驱动仍在使用中。卸载后重启，然后打开“驱动管理”安装当前驱动。";
             else if (output.Contains("DMA_DRIVER_NOT_INSTALLED"))
-                OperationDetail.Text = "尚未安装 CMP90HXUnlockNative。打开“驱动管理”安装证书和驱动。";
+                OperationDetail.Text = "尚未安装 Native 解锁驱动。请打开“驱动管理”安装证书和解锁驱动。";
             else if (output.Contains("CMP90HXUnlockNative start failed"))
-                OperationDetail.Text = "DMA 驱动启动失败。请查看日志中的系统错误码，并检查驱动签名及本次启动的签名策略。";
+                OperationDetail.Text = "DMA 驱动启动失败。请查看日志中的系统错误码，并检查证书是否正确安装以及驱动签名和安全启动状态。";
             else {
                 MatchCollection failures = Regex.Matches(output, @"(?m)(?:FAILED_STAGE[^\r\n]*|FAILED: [^\r\n]*|GUI_WORKFLOW_FAILED[^\r\n]*)");
                 OperationDetail.Text = failures.Count > 0 ? Tail(failures[failures.Count - 1].Value, 240)
@@ -456,7 +456,7 @@ namespace CMP90HX.Control
             EnvironmentText.Text = "界面预览 · 示例数据";
             LinkText.Text = state == "success" ? "Gen2 ×16" : "待读取";
             ComputeText.Text = GraphicsText.Text = state == "success" ? "已解锁" : "无法确认";
-            QuadroText.Text = state == "success" ? "已设置" : "无法确认";
+            QuadroText.Text = state == "success" ? "已解锁" : "无法确认";
             UnlockReadDetail.Text = state == "success" ? "示例快照 · 上游桥 Gen2 ×16 · 功能依据寄存器值，未进行负载测试。" : "示例数据 · 本次尚未取得解锁后的有效快照。";
             GpuText.Text = "NVIDIA CMP 90HX";
             PnpText.Text = "已停用 · Code 22";

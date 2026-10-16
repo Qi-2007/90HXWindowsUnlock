@@ -13,7 +13,7 @@ namespace CMP90HX.Control
     internal sealed class RuntimePaths
     {
         internal const string Version="1.3.8";
-        internal const string ReaderHash="BA0EF1A246CCD54559DEF7C9FF05C0A40FED030B14093BA6EB38442FAC561978";
+        internal const string ReaderHash="B2D432BE8A8FF0B17E0F0B22E2F65DF2C89A79893CF9CA35C52D9ACFF4A20C9A";
         internal const string ReaderClientHash="BF147FEDF6A72FDE2F17E51118107B9B8E954B9CCD03A444696F9D88DF960691";
         // Generated from manually prepared local backend packages before compilation.
         internal const string Gen2Hash=BackendPackagePolicy.NativeWorker;
@@ -155,7 +155,7 @@ namespace CMP90HX.Control
             }
             if(snapshot.FunctionState(0x82381c,0x88888888,0x823820,8)!="已解锁" || snapshot.FunctionState(0x823830,4)!="已解锁")
                 throw new IOException("计算/图形解锁值未保持。");
-            if(snapshot.QuadroState()!="已设置")
+            if(snapshot.QuadroState()!="已解锁")
                 throw new IOException("光追 / Quadro 源 override 未达目标值或无法读取；请使用配套的新后端和状态读取驱动。");
         }
         void Verify(GpuDevice target,int gpuWidth,int bridgeWidth)

@@ -19,6 +19,18 @@ namespace CMP90HX.Control
             }
         }
         internal static bool Ready() { return Installed()[0]; }
+        internal static void EnsureInstalled(RuntimePaths paths,Action<string> log)
+        {
+            EnsureInstalled(Ready,()=>Install(paths,log),log);
+        }
+        // Delegate overload keeps installation policy testable without changing system trust.
+        internal static void EnsureInstalled(Func<bool> ready,Action install,Action<string> log)
+        {
+            if(ready()) {log("CERTIFICATE_ALREADY_INSTALLED: 系统根证书已安装，继续安装驱动。");return;}
+            log("CERTIFICATE_AUTO_INSTALL: 缺少系统根证书，正在安装随包证书。");
+            install();
+            if(!ready()) throw new IOException("系统根证书安装后验证失败，已停止驱动安装。");
+        }
         internal static void RequireInstalled()
         {
             bool[] installed=Installed();
@@ -67,6 +79,7 @@ namespace CMP90HX.Control
         internal static string DisplayName { get { return ""; } }
         internal static bool[] Installed() { return new bool[0]; }
         internal static bool Ready() { return true; }
+        internal static void EnsureInstalled(RuntimePaths paths,Action<string> log) { }
         internal static void RequireInstalled() { }
         internal static void ValidateFiles(RuntimePaths paths) { }
         internal static void Install(RuntimePaths paths,Action<string> log) { throw new NotSupportedException("当前构建未启用根证书功能。"); }
