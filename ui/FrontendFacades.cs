@@ -4,7 +4,7 @@ using System.IO;
 namespace CMP90HX.Control {
     // These facades intentionally contain no PnP, driver, MMIO, NVAPI calls.
     internal sealed class RuntimePaths {
-        internal const string Version="1.3.8";
+        internal const string Version="1.3.9";
         internal readonly string Logs;
         internal RuntimePaths(string directory) {Logs=Path.Combine(AppData.Root,"FrontendLogs");}
     }

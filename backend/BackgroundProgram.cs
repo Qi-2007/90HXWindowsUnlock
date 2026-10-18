@@ -330,9 +330,7 @@ namespace CMP90HX.Control {
             int result=RunProcess(worker,"session-restore --bdf "+target.Bdf+" --log "+WindowsWorkflowPlatform.Quote(log));
             if(result!=0) {
                 string details=File.Exists(log)?File.ReadAllText(log):"";
-                if(details.IndexOf("reboot",StringComparison.OrdinalIgnoreCase)>=0)
-                    throw new IOException("SESSION_RECOVERY_REQUIRES_REBOOT: Session 的 DMA 状态尚未确认安全，请重启 Windows 后重试自动恢复 NVIDIA；本次操作已停止。");
-                throw new IOException("SESSION_AUTO_RESTORE_FAILED: 无法安全恢复 NVIDIA，本次操作已停止。请查看 session-auto-restore.log。");
+                throw new IOException(SessionRecoveryFailure.ClassifyWorkerLog(details).Message);
             }
             var restored=NativePnp.Unique();
             if(restored.InstanceId!=target.InstanceId || restored.Problem!=0 || BindingName(restored)!="NVIDIA")

@@ -355,7 +355,11 @@ namespace CMP90HX.Control
                 FooterText.Text = "解锁状态 · 未安装驱动";
                 return;
             }
-            if(output.Contains("SESSION_RECOVERY_REQUIRES_REBOOT")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="恢复 NVIDIA 需要重启";OperationDetail.Text="Session 的 DMA 状态尚未确认安全。本次操作已停止，请重启 Windows 后再试。";FooterText.Text="等待重启";return;}
+            var recoveryFailure=SessionRecoveryFailure.FromOutput(output);
+            if(recoveryFailure!=null) {
+                OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString(recoveryFailure.RequiresReboot?"#995E0C":"#A83B32");
+                OperationTitle.Text=recoveryFailure.Title;OperationDetail.Text=recoveryFailure.Detail;FooterText.Text=recoveryFailure.Footer;return;
+            }
             if(output.Contains("SESSION_DRIVER_UPDATE_REQUIRES_REBOOT") || output.Contains("Driver binding requires reboot; no unlock IOCTL will be submitted.")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="Session 驱动更新需要重启";OperationDetail.Text=output.Contains("恢复记录已清除")?"本次未解锁，NVIDIA 已恢复。请重启 Windows 后再解锁。":"本次未解锁。请先检查 NVIDIA 和会话恢复记录，完成恢复后重启 Windows。";FooterText.Text="等待重启";return;}
             if(output.Contains("DMA_DRIVER_UPDATE_REQUIRES_REBOOT") || output.Contains("READER_DRIVER_UPDATE_REQUIRES_REBOOT")) {OperationTitle.Foreground=(Brush)new BrushConverter().ConvertFromString("#995E0C");OperationTitle.Text="驱动更新需要重启";OperationDetail.Text="旧驱动仍在使用中。请重启 Windows，再到驱动管理中手动安装当前驱动后重试。";FooterText.Text="等待重启";return;}
             if(output.Contains("NATIVE_DMA_PROTECTION_BLOCKED")) {OperationTitle.Text="无法使用 Native 模式";OperationDetail.Text="内核 DMA 保护已开启或状态无法确认，请在设置中选择 Session 模式。";FooterText.Text="解锁未执行";return;}

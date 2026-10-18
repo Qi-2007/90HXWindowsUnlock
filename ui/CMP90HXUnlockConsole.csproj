@@ -76,6 +76,7 @@
     <Compile Include="BackendSettingsWindow.cs" />
     <Compile Include="..\shared\ControlIpc.cs" />
     <Compile Include="..\shared\AppData.cs" />
+    <Compile Include="..\shared\SessionRecoveryFailure.cs" />
     <Compile Include="..\shared\PowerDtos.cs" />
     <Compile Include="..\shared\BackendClient.cs" />
   </ItemGroup>
