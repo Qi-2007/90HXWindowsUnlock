@@ -1,4 +1,5 @@
 ![项目图标](ui/icon.ico)
+
 # CMP 90HX Windows Unlock
 
 **简体中文** | [English](README.en.md)
@@ -7,9 +8,9 @@
 
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?style=flat-square)		![.NET Framework](https://img.shields.io/badge/.NET_Framework-4.8.1-512BD4?style=flat-square)		[![GPL v3](https://img.shields.io/badge/License-GPL_v3-blue?style=flat-square)](LICENSE)
 
-[下载](https://github.com/Qi-2007/90HXWindowsUnlock/releases) · [快速上手](#快速上手) · [常见问题](#常见问题) · [开发与构建](#开发与构建) · [问题反馈](https://github.com/Qi-2007/90HXWindowsUnlock/issues)
+[下载](https://github.com/Qi-2007/90HXWindowsUnlock/releases) · [快速上手](#快速上手) · [常见问题](#常见问题) · [开发与构建](#开发与构建) · [问题反馈](https://github.com/Qi-2007/90HXWindowsUnlock/issues) · [赞助我们](#赞助我们)
 
-如果本项目为你提供了便利，请给我们一个 **Star**，为我的更新提供动力。
+如果本项目为你提供了便利，请给我们一个 **Star** 或考虑 [赞助我们](#赞助我们) ，为我的更新提供动力。
 
 CMP 90HX Windows Unlock 为 NVIDIA CMP 90HX 提供 Windows 下解锁的图形控制台，集成 Native / Session 两种解锁方案、解锁状态读取和后台省电控制。前台负责交互，后台负责硬件操作；关闭窗口后，后台仍可按配置执行省电和唤醒任务。
 
@@ -17,20 +18,21 @@ CMP 90HX Windows Unlock 为 NVIDIA CMP 90HX 提供 Windows 下解锁的图形控
 
 ## 功能
 
-|功能|说明|
-|-|-|
-| **双解锁方案** |在设置中选择 Native 或 Session，统一从控制台执行手动解锁。|
-| **显卡解锁** | 无需通过EFI启动，在Windows系统下通过驱动程序解锁显卡功能和PCIe Gen2。 |
-| **状态读取** | 查看 PCIe 链路、计算、图形和光追 override 状态。 |
-| **驱动管理** | 安装、更新和卸载状态读取驱动及当前方案的解锁驱动，显示 NVIDIA 接管状态。 |
-| **后台自动操作** | 可配置开机自启后台、开机自动解锁和睡眠唤醒后自动解锁。 |
-| **空闲省电** | 空闲时限制到 P8，根据 GPU 负载、视频负载及应用例外恢复自动性能。 |
-| **界面主题** | 自定义图片背景、各窗口和日志框透明度。 |
-| **可选根证书功能** | 启用对应构建选项后，安装驱动前将检查根证书，缺失时自动安装随包证书。 |
+| 功能          | 说明                                           |
+| ----------- | -------------------------------------------- |
+| **双解锁方案**   | 在设置中选择 Native 或 Session，统一从控制台执行手动解锁。        |
+| **显卡解锁**    | 无需通过EFI启动，在Windows系统下通过驱动程序解锁显卡功能和PCIe Gen2。 |
+| **状态读取**    | 查看 PCIe 链路、计算、图形和光追 override 状态。             |
+| **驱动管理**    | 安装、更新和卸载状态读取驱动及当前方案的解锁驱动，显示 NVIDIA 接管状态。     |
+| **后台自动操作**  | 可配置开机自启后台、开机自动解锁和睡眠唤醒后自动解锁。                  |
+| **空闲省电**    | 空闲时限制到 P8，根据 GPU 负载、视频负载及应用例外恢复自动性能。         |
+| **界面主题**    | 自定义图片背景、各窗口和日志框透明度。                          |
+| **可选根证书功能** | 启用对应构建选项后，安装驱动前将检查根证书，缺失时自动安装随包证书。           |
 
 > 各功能解锁状态仅表示源 override 寄存器达到目标值。实际可用性取决于配套 NVIDIA 驱动与初始化状态，请确保安装经过patch对应功能的特殊驱动程序。
 
 ## 截图
+
 ![CMP 90HX Windows Unlock 控制台界面预览](docs/images/console-preview.png)
 
 ## 下载
@@ -39,7 +41,7 @@ CMP 90HX Windows Unlock 为 NVIDIA CMP 90HX 提供 Windows 下解锁的图形控
 
 使用前请下载并完整解压运行包。GitHub 的 Source code ZIP 是源码，不能作为已编译的软件直接运行。
 
->请保留运行包中的 `native`、`session`、`reader` 目录及 `files.sha256.json` 等配套文件。程序文件有哈希配对校验，缺失或修改可能无法运行。
+> 请保留运行包中的 `native`、`session`、`reader` 目录及 `files.sha256.json` 等配套文件。程序文件有哈希配对校验，缺失或修改可能无法运行。
 
 ## 快速上手
 
@@ -61,10 +63,10 @@ CMP 90HX Windows Unlock 为 NVIDIA CMP 90HX 提供 Windows 下解锁的图形控
 
 ### 如何选择解锁方案
 
-|方案|工作方式|使用条件|
-|-|-|-|
-|**Native**|使用独立 worker 和 Native 驱动执行解锁事务。|要求内核 DMA 保护未开启；无需切换显卡驱动，解锁更快。|
-|**Session**|使用session驱动临时接管显卡、执行解锁，确认 DMA 释放后恢复原 NVIDIA 驱动。|支持内核 DMA 保护。|
+| 方案          | 工作方式                                            | 使用条件                          |
+| ----------- | ----------------------------------------------- | ----------------------------- |
+| **Native**  | 使用独立 worker 和 Native 驱动执行解锁事务。                  | 要求内核 DMA 保护未开启；无需切换显卡驱动，解锁更快。 |
+| **Session** | 使用session驱动临时接管显卡、执行解锁，确认 DMA 释放后恢复原 NVIDIA 驱动。 | 支持内核 DMA 保护。                  |
 
 内核 DMA 保护开启时，控制台会禁止使用 Native 模式，请自行切换至 Session 模式。切换方案会卸载旧方案的解锁驱动，切换后仍需在驱动管理中手动安装新方案解锁驱动。
 
@@ -121,12 +123,12 @@ Console 使用 WPF 与 .NET Framework 4.8.1。准备 Visual Studio MSBuild 和�
 .\\build\\CMP90HXControl.exe
 ```
 
-|文档|内容|
-|-|-|
-|[独立后端包](docs/backend-packages.md)|Native / Session 成品清单、文件配对与接入方式。|
-|[发布步骤](docs/RELEASING_ZH.md)|Reader 签名、构建选项、哈希更新和发布打包。|
-|[后台控制说明](docs/background-control.md)|自动解锁、开机任务、配置和日志。|
-|[共享读取驱动](docs/shared-reader.md)|状态读取的职责、接口及验证方式。|
+| 文档                                   | 内容                               |
+| ------------------------------------ | -------------------------------- |
+| [独立后端包](docs/backend-packages.md)    | Native / Session 成品清单、文件配对与接入方式。 |
+| [发布步骤](docs/RELEASING_ZH.md)         | Reader 签名、构建选项、哈希更新和发布打包。        |
+| [后台控制说明](docs/background-control.md) | 自动解锁、开机任务、配置和日志。                 |
+| [共享读取驱动](docs/shared-reader.md)      | 状态读取的职责、接口及验证方式。                 |
 
 前台入口为 `CMP90HXControl.exe`，后台入口为 `CMP90HXBackground.exe`。配置位于 `C:\\ProgramData\\CMP90HX\\settings.json`。
 
@@ -151,3 +153,18 @@ Console 使用 WPF 与 .NET Framework 4.8.1。准备 Visual Studio MSBuild 和�
 * 操作步骤、完整错误信息，以及通过 **复制日志** 或 **打开目录** 取得的本次日志。
 
 分享日志前请检查其中的本地路径和设备信息，移除不希望公开的内容。
+
+## 赞助我们
+
+我们接受以下类型的赞助：可以用于签名驱动程序的数字签名证书、服务器、域名、其他型号的显卡（实物或者是可以远程访问的电脑）、您自己设计的项目图标，金钱
+
+> 您的赞助可以让我投入更多的精力在这个项目上，**但是并不会给你带来任何额外的功能和服务**
+
+**赞助方法：**
+
+* 通过邮件联系我：lll20001101@gmail.com
+* [爱发电](https://ifdian.net/a/Qi_blog/plan)
+* [Patreon](https://patreon.com/qi07)
+* ![微信赞赏](docs/images/tenpaysponsorqr.jpg)
+
+> 如果您希望被展示，请将您的赞助证明和展示内容（您的昵称和主页链接）通过邮件发送给我，您的姓名将会确认后在此展示

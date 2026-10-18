@@ -6,7 +6,7 @@ namespace CMP90HX.Control {
     internal sealed class RuntimePaths {
         internal const string Version="1.3.8";
         internal readonly string Logs;
-        internal RuntimePaths(string directory) {Logs=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CMP90HX","FrontendLogs");}
+        internal RuntimePaths(string directory) {Logs=Path.Combine(AppData.Root,"FrontendLogs");}
     }
     internal static class DriverService {
         internal static void ProtectDirectory(string directory) {Directory.CreateDirectory(directory);}

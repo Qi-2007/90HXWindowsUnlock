@@ -209,6 +209,7 @@
                 <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
                 <Button x:Name="UninstallButton" Content="一键卸载" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="UninstallButton_Click" ToolTip="卸载读取与解锁驱动、签名根证书。" />
                 <Button x:Name="SettingsButton" Content="设置" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="BackendSettingsButton_Click" />
+                <Button x:Name="DocumentationButton" Content="文档" Style="{StaticResource ActionButton}" Height="30" Padding="12,0" Margin="0,0,10,0" Click="DocumentationButton_Click" ToolTip="在浏览器中打开使用引导和文档" />
                 <Border Background="#EDF5FC" CornerRadius="12" Padding="12,6" VerticalAlignment="Center">
                     <TextBlock x:Name="EnvironmentText" Text="Windows · x64" Foreground="#1763A0" FontSize="12" FontWeight="SemiBold" />
                 </Border>

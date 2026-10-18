@@ -10,6 +10,7 @@ namespace CMP90HX.Control {
         internal static string PreviewState,SnapshotPath;
         internal static LogSession Session;
         internal static bool DisableAutoUnlock;
+        internal static int CleanupBackendPid;
         Mutex instance;bool owned;DesktopPresence desktop;
         protected override void OnStartup(StartupEventArgs e) {
             base.OnStartup(e);
@@ -32,6 +33,7 @@ namespace CMP90HX.Control {
                     instance=SharedSynchronization.OpenMutex("Global\\CMP90HX.Control.Frontend.v1");
                     try {owned=instance.WaitOne(0);}catch(AbandonedMutexException){owned=true;}
                     if(!owned) {DesktopPresence.TryActivate();Shutdown(0);return;}
+                    AppData.MigrateLegacy();
                     BackendClient.Ensure(DisableAutoUnlock);
                     if(DisableAutoUnlock)BackendClient.Require("DisableAutomatic",null,null);
                     var state=BackendClient.Read();DisableAutoUnlock|=state.AutoUnlockDisabled;
@@ -46,6 +48,14 @@ namespace CMP90HX.Control {
         }
         internal static string Quote(string value) {return "\""+value.Replace("\"","\\\"")+"\"";}
         internal static bool IsAdministrator(){using(var identity=WindowsIdentity.GetCurrent())return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);}
-        protected override void OnExit(ExitEventArgs e){if(desktop!=null)desktop.Dispose();if(owned)instance.ReleaseMutex();if(instance!=null)instance.Dispose();if(Session!=null)Session.Dispose();base.OnExit(e);}
+        protected override void OnExit(ExitEventArgs e){
+            if(desktop!=null)desktop.Dispose();
+            if(Session!=null)Session.Dispose();
+            if(CleanupBackendPid>0) {
+                try {AppData.StartCleanup(Path.Combine(AppDomain.CurrentDomain.BaseDirectory,"CMP90HXBackground.exe"),CleanupBackendPid);}
+                catch(Exception error){MessageBox.Show("无法启动数据清理，请在退出后删除 "+AppData.Root+"："+error.Message,"卸载清理未完成");}
+            }
+            if(owned)instance.ReleaseMutex();if(instance!=null)instance.Dispose();base.OnExit(e);
+        }
     }
 }

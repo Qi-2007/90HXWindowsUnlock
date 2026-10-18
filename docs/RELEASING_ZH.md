@@ -1,5 +1,17 @@
 # Console 发布步骤
 
+## 首次引导与文档链接
+
+默认地址常量位于 `ui/OnboardingPolicy.cs`：`https://90hx.445533.xyz/onboarding/officialsetup.html`。首次打开前台时通过系统默认浏览器打开引导，主窗口“设置”右侧的“文档”按钮随时打开同一地址。
+
+交互运行 `build-release.ps1` 时会提示输入引导链接，直接按 Enter 使用默认地址。也可传入 `-OnboardingUrl 'https://你的域名/另一个引导.html'`；非交互模式省略参数时使用默认值。`build.ps1` 和 `build-gui.ps1` 同样支持此参数。链接编译为前台内的常量，不增加发布包配置文件，也不修改源码中的默认值。
+
+`-PackageOnly` 的链接必须与上次编译一致，不能只打包就更改已编译的链接。编译记录中的 `OnboardingUrl` 可用于核对。
+
+首次打开记录保存在 `%ProgramData%\CMP90HX\Onboarding`，按引导 URL 区分。同一台电脑相同链接后续启动不重复打开，换用另一发布版本的链接时会打开对应引导。预览、截图及后台单独启动不会触发；浏览器启动失败时保留重试机会，并写入前台日志。
+
+前后台日志、配置、运行副本及引导记录统一保存在 `%ProgramData%\CMP90HX`。前台正常启动时会迁移当前用户旧的 `%LOCALAPPDATA%\CMP90HX` 内容；占用中的旧文件保留，后续启动重试迁移。一键卸载成功后，退出前后台并清理新旧数据目录；仍被占用的文件和目录安排在 Windows 重启后删除。
+
 默认构建不包含根证书 UI、安装/卸载功能、证书安装前置检查或证书文件。默认编译使用 `build.ps1`；需要根证书功能时使用 `build.ps1 -EnableRootCertificates`，可另带 `-CertificateDirectory` 选择公开证书目录。直接 MSBuild 使用 `/p:RootCertificateSupport=true`。
 
 正式发布同样默认关闭根证书功能：`build-release.ps1`。启用时使用 `build-release.ps1 -EnableRootCertificates`；`-PackageOnly` 必须与上次编译的选项一致。驱动签名验证不受此开关影响，默认版的一键卸载也不会操作系统根证书。

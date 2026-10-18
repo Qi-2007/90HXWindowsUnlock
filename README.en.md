@@ -7,9 +7,9 @@
 
 ![Windows x64](https://img.shields.io/badge/Windows-x64-0078D4?style=flat-square) ![.NET Framework](https://img.shields.io/badge/.NET_Framework-4.8.1-512BD4?style=flat-square) [![GPL v3](https://img.shields.io/badge/License-GPL_v3-blue?style=flat-square)](LICENSE)
 
-[Download](https://github.com/Qi-2007/90HXWindowsUnlock/releases) · [Quick Start](#quick-start) · [FAQ](#faq) · [Development and Build](#development-and-build) · [Report an Issue](https://github.com/Qi-2007/90HXWindowsUnlock/issues)
+[Download](https://github.com/Qi-2007/90HXWindowsUnlock/releases) · [Quick Start](#quick-start) · [FAQ](#faq) · [Development and Build](#development-and-build) · [Report an Issue](https://github.com/Qi-2007/90HXWindowsUnlock/issues) · [Sponsor Us](#sponsor-us)
 
-If this project has been useful to you, please give it a **Star** to support further updates.
+If this project has made things easier for you, please give us a **Star** or consider [sponsoring us](#sponsor-us) to motivate my updates.
 
 CMP 90HX Windows Unlock provides a graphical console for unlocking NVIDIA CMP 90HX cards on Windows. It integrates Native and Session unlock methods, unlock status monitoring, and background power management. The frontend handles user interaction, while the backend handles hardware operations. After the window closes, the backend can continue power-saving and wake-up tasks according to your settings.
 
@@ -43,6 +43,8 @@ Download and fully extract the runtime package before use. GitHub's Source code 
 > Keep the `native`, `session`, and `reader` directories, along with supporting files such as `files.sha256.json`. Program files are checked against matching hashes; missing or modified files may prevent the application from running.
 
 ## Quick Start
+
+**The console currently only supports Chinese. If you want to use it, please refer to a translator. You can also submit a PR to help us with the translation.**
 
 ### Requirements
 
@@ -162,3 +164,18 @@ Please submit a [GitHub Issue](https://github.com/Qi-2007/90HXWindowsUnlock/issu
 - Steps to reproduce, the complete error message, and the current operation's logs obtained through **Copy Logs** or **Open Directory**.
 
 Before sharing logs, check local paths and device information, and remove anything you do not want to make public.
+
+## Sponsor Us
+
+We accept the following types of sponsorship: digital signing certificates that can be used to sign drivers, servers, domain names, other models of graphics cards (physical items or computers that can be accessed remotely), project icons designed by you, and money.
+
+> Your sponsorship allows me to devote more effort to this project, **but it will not bring you any additional features or services**.
+
+**How to sponsor:**
+
+* Contact me by email: lll20001101@gmail.com
+* [Patreon](https://patreon.com/qi07)
+* [Afdian](https://ifdian.net/a/Qi_blog/plan)
+* ![WeChat Tip](docs/images/tenpaysponsorqr.jpg)
+
+> If you would like to be featured, please send your sponsorship proof and display content (your nickname and homepage link) to me by email. Your name will be displayed here after confirmation.

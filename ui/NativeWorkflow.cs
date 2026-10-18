@@ -13,7 +13,7 @@ namespace CMP90HX.Control
     internal sealed class RuntimePaths
     {
         internal const string Version="1.3.8";
-        internal const string ReaderHash="B2D432BE8A8FF0B17E0F0B22E2F65DF2C89A79893CF9CA35C52D9ACFF4A20C9A";
+        internal const string ReaderHash="06D18DFE0E26C6D36AA2F7DFBC4E272495F8BF2348DA93C3A2A537A0D7849AFB";
         internal const string ReaderClientHash="BF147FEDF6A72FDE2F17E51118107B9B8E954B9CCD03A444696F9D88DF960691";
         // Generated from manually prepared local backend packages before compilation.
         internal const string Gen2Hash=BackendPackagePolicy.NativeWorker;

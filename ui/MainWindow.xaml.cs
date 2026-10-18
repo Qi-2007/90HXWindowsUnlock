@@ -57,6 +57,12 @@ namespace CMP90HX.Control
             Closed += delegate { closed = true; timer.Stop(); };
         }
 
+        void DocumentationButton_Click(object sender, RoutedEventArgs e)
+        {
+            try {Onboarding.OpenPage(OnboardingPolicy.Url);}
+            catch(Exception error){MessageBox.Show(this,"无法打开文档："+error.Message,"打开文档失败",MessageBoxButton.OK,MessageBoxImage.Error);}
+        }
+
         void Hyperlink_RequestNavigate(object sender, System.Windows.Navigation.RequestNavigateEventArgs e)
         {
             e.Handled = true;
@@ -80,6 +86,8 @@ namespace CMP90HX.Control
             }
             if(startupInitialized) return;
             startupInitialized = true;
+            try {if(Onboarding.OpenFirstTime())AppendLog("已在浏览器中打开首次使用引导。\r\n");}
+            catch(Exception error){AppendLog("首次引导打开失败，可点击右上角“文档”重试："+error.Message+"\r\n");}
             AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查，然后在驱动管理中安装所有驱动。\r\n旧日志已自动清理。\r\n");
             RefreshStatus(true);
             timer.Start();
@@ -251,14 +259,16 @@ namespace CMP90HX.Control
         async void UninstallButton_Click(object sender, RoutedEventArgs e)
         {
             if(busy || App.PreviewState!=null) return;
-            if(MessageBox.Show(this, "将停止省电并恢复自动性能，卸载读取驱动、两种解锁驱动和签名根证书。已加载的驱动需要重启后完成卸载。完成后程序将退出，日志和配置保留，可以自行前往C:\\ProgramData删除CMP90HX文件夹。是否继续？",
+            if(MessageBox.Show(this, "将停止省电并恢复自动性能，卸载读取驱动、两种解锁驱动和签名根证书。完成后程序将退出，并清空 C:\\ProgramData\\CMP90HX 中的日志、配置和引导记录，同时清理当前用户的旧数据目录。占用中的驱动文件将在重启后删除。是否继续？",
                 "一键卸载",MessageBoxButton.YesNo,MessageBoxImage.Warning,MessageBoxResult.No)!=MessageBoxResult.Yes) return;
             SetBusy(true);
             OperationTitle.Text="正在卸载";
             OperationDetail.Text="正在恢复性能并移除驱动和证书。";
             try {
+                int backgroundPid=BackendClient.Read().Pid;
                 await Task.Run(()=>BackendClient.Require("UninstallAll",null,line=>Dispatcher.BeginInvoke(new Action(()=>AppendLog(line+"\r\n")))));
-                MessageBox.Show(this,"驱动和证书已卸载。请重启 Windows使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
+                timer.Stop();App.CleanupBackendPid=backgroundPid;
+                MessageBox.Show(this,"驱动和证书已卸载。退出后将自动清理程序数据；被占用的文件将在重启后删除。请重启 Windows 使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
                 SetBusy(false);
                 Application.Current.Shutdown(0);
             } catch(Exception error) {

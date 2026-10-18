@@ -2,6 +2,31 @@
 . (Join-Path $PSScriptRoot 'ConsoleEncoding.ps1')
 function Get-BuildRoot { Split-Path -Parent $PSScriptRoot }
 
+function Resolve-BuildOnboardingUrl([string]$Url) {
+    if([string]::IsNullOrWhiteSpace($Url)) {
+        $source=[IO.File]::ReadAllText((Join-Path (Get-BuildRoot) 'ui\OnboardingPolicy.cs'))
+        $match=[regex]::Match($source,'const string Url="([^"]+)";')
+        if(!$match.Success){throw 'Default onboarding URL constant is missing.'}
+        $Url=$match.Groups[1].Value
+    }
+    $Url=$Url.Trim()
+    $uri=$null
+    if($Url -match '[\x00-\x20]' -or ![Uri]::TryCreate($Url,[UriKind]::Absolute,[ref]$uri) -or $uri.Scheme -notin @('http','https')) {
+        throw 'Onboarding URL must be an absolute HTTP or HTTPS address without whitespace.'
+    }
+    return $Url
+}
+
+function Write-BuildOnboardingPolicy([string]$Url) {
+    $Url=Resolve-BuildOnboardingUrl $Url
+    $path=Join-Path (Get-BuildRoot) 'build\OnboardingPolicy.cs'
+    New-Item -ItemType Directory -Path (Split-Path -Parent $path) -Force | Out-Null
+    $literal=$Url.Replace('\','\\').Replace('"','\"')
+    $source='namespace CMP90HX.Control { internal static class OnboardingPolicy { internal const string Url="'+$literal+'"; } }'
+    if(!(Test-Path -LiteralPath $path) -or [IO.File]::ReadAllText($path) -cne $source){[IO.File]::WriteAllText($path,$source,(New-Object Text.UTF8Encoding($false)))}
+    return $path
+}
+
 function Initialize-BuildReader([string]$MSBuild,[switch]$NonInteractive,[switch]$RebuildReader) {
     $root=Get-BuildRoot
     $directory=Join-Path $root 'build\reader'

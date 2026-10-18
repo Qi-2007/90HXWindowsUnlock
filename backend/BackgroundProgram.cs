@@ -10,6 +10,10 @@ using System.Threading;
 namespace CMP90HX.Control {
     internal static class BackgroundProgram {
         static int Main(string[] args) {
+            if(args.Length==3 && args[0]=="--cleanup-data") {
+                try {return AppData.CleanupAfterExit(Int32.Parse(args[1]),Int32.Parse(args[2]));}
+                catch(Exception error){Console.Error.WriteLine(error);return 1;}
+            }
             try {
                 if(args.Length==2 && args[0]=="--validate-package") {
                     var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
@@ -42,7 +46,7 @@ namespace CMP90HX.Control {
             } catch(Exception error) {
                 Console.Error.WriteLine(error);
                 // Even an early configuration failure must be diagnosable without a window.
-                string root=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"CMP90HX");
+                string root=AppData.Root;
                 try {Directory.CreateDirectory(root);File.WriteAllText(Path.Combine(root,"background-startup-error.log"),error.ToString());} catch(IOException) {}
                 return 1;
             }

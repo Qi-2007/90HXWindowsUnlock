@@ -1,7 +1,9 @@
 [CmdletBinding()]
-param([string]$MSBuild,[switch]$Clean,[string]$CertificateDirectory,[switch]$NonInteractive,[string]$OutputDirectory,[switch]$EnableRootCertificates,[switch]$RebuildReader)
+param([string]$MSBuild,[switch]$Clean,[string]$CertificateDirectory,[switch]$NonInteractive,[string]$OutputDirectory,[switch]$EnableRootCertificates,[switch]$RebuildReader,[string]$OnboardingUrl)
 $ErrorActionPreference='Stop'
 . (Join-Path $PSScriptRoot 'tools\BuildCommon.ps1')
+$OnboardingUrl=Resolve-BuildOnboardingUrl $OnboardingUrl
+$onboardingPolicy=Write-BuildOnboardingPolicy $OnboardingUrl
 $MSBuild=Resolve-BuildMSBuild $MSBuild
 Assert-BuildFramework -Gui
 Initialize-BuildReader -MSBuild $MSBuild -NonInteractive:$NonInteractive -RebuildReader:$RebuildReader
@@ -20,7 +22,7 @@ foreach($pair in @(@('ReaderHash','CMP90HXReader.sys'),@('ReaderClientHash','CMP
 $target=if($Clean) {'/t:Rebuild'} else {'/t:Build'}
 & $MSBuild (Join-Path $PSScriptRoot 'backend\CMP90HXBackground.csproj') $target /m /p:Configuration=Release /p:Platform=x64 "/p:OutputPath=$OutputDirectory\" "/p:CertificateDirectory=$CertificateDirectory" $rootCertificateProperty /verbosity:minimal | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "Background build failed: $LASTEXITCODE" }
-& $MSBuild (Join-Path $PSScriptRoot 'ui\CMP90HXUnlockConsole.csproj') $target /m /p:Configuration=Release /p:Platform=x64 "/p:OutputPath=$OutputDirectory\" "/p:CertificateDirectory=$CertificateDirectory" $rootCertificateProperty /verbosity:minimal | Out-Host
+& $MSBuild (Join-Path $PSScriptRoot 'ui\CMP90HXUnlockConsole.csproj') $target /m /p:Configuration=Release /p:Platform=x64 "/p:OutputPath=$OutputDirectory\" "/p:CertificateDirectory=$CertificateDirectory" "/p:OnboardingPolicyFile=$onboardingPolicy" $rootCertificateProperty /verbosity:minimal | Out-Host
 if ($LASTEXITCODE -ne 0) { throw "GUI build failed: $LASTEXITCODE" }
 $exe=Join-Path $OutputDirectory 'CMP90HXControl.exe'
 if (!(Test-Path -LiteralPath $exe)) { throw 'GUI executable was not created.' }
@@ -50,6 +52,7 @@ $current=Get-Content -LiteralPath (Join-Path $PSScriptRoot 'build\backend-inputs
 if(($staged.Inputs | ConvertTo-Json -Compress) -cne ($current.Inputs | ConvertTo-Json -Compress)){throw 'Backend inputs changed during Console compilation; finish copying and rebuild.'}
 $staged | Add-Member -NotePropertyName Artifacts -NotePropertyValue $manifest -Force
 $staged | Add-Member -NotePropertyName RootCertificateSupport -NotePropertyValue $EnableRootCertificates.IsPresent -Force
+$staged | Add-Member -NotePropertyName OnboardingUrl -NotePropertyValue $OnboardingUrl -Force
 $staged | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $OutputDirectory 'compiled-backends.json') -Encoding UTF8
 Get-FileHash -Algorithm SHA256 $exe
 Write-Host "GUI ready: $exe"

@@ -38,5 +38,5 @@ foreach($name in $files.Keys){
  Copy-Item -LiteralPath (Join-Path $build $name) -Destination $destination
  if((Get-FileHash -LiteralPath $destination).Hash -cne $files[$name]){throw "Runtime artifact changed during packaging: $name"}
 }
-foreach($name in @('README.md','README.en.md','LICENSE')){Copy-Item -LiteralPath (Join-Path $project $name) -Destination $output}
+Copy-Item -LiteralPath (Join-Path $project 'LICENSE') -Destination $output
 $files | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $output 'files.sha256.json') -Encoding UTF8
