@@ -46,10 +46,32 @@ namespace CMP90HX.Control
         internal static PowerStatus ReadStatus()
         {return ReadStatus(Root);}
         internal static PowerStatus ReadStatus(string root)
+        {return ReadStatus(root,null);}
+        internal static PowerStatus ReadStatus(string root,Action<string> log)
         {
             string file=Path.Combine(root,"State","power-status.json");
             if(!File.Exists(file)) file=Path.Combine(root,"Power","status.json");
-            return File.Exists(file)?new JavaScriptSerializer().Deserialize<PowerStatus>(File.ReadAllText(file)):null;
+            if(!File.Exists(file)) return null;
+            try {
+                string text=File.ReadAllText(file);
+                // A missing ownership flag must not silently become false after a torn write.
+                var json=new JavaScriptSerializer();
+                var fields=json.Deserialize<Dictionary<string,object>>(text);object limited;
+                if(fields==null || !fields.TryGetValue("LimitApplied",out limited) || !(limited is bool))
+                    throw new InvalidOperationException("Missing or invalid LimitApplied flag.");
+                return json.ConvertToType<PowerStatus>(fields);
+            } catch(OutOfMemoryException) {throw;}
+              // JavaScriptSerializer's property converters can throw plain Exception,
+              // in addition to ArgumentException for malformed JSON.
+              catch(Exception error) {return RecoverStatus(file,error,log);}
+        }
+        static PowerStatus RecoverStatus(string file,Exception error,Action<string> log)
+        {
+            string detail="POWER_STATUS_RECOVERY_REQUIRED: "+file+": "+error.Message;
+            if(log!=null) log(detail);
+            // The cache cannot prove whether a previous P8 limit was released.
+            // Keep recovery pending until NVAPI successfully restores automatic performance.
+            return new PowerStatus {LimitApplied=true,Policy="省电状态缓存不可用，等待恢复",Detail=detail};
         }
         internal static void WriteSettings(PowerSettings settings)
         {using(var deployment=new DeploymentLock()) {Prepare();WriteSettings(Root,settings);}}
@@ -89,7 +111,11 @@ namespace CMP90HX.Control
             if(File.Exists(target) && (File.GetAttributes(target)&FileAttributes.ReparsePoint)!=0) throw new IOException("省电文件不能是符号链接。");
             string temporary=Path.Combine(directory,Guid.NewGuid().ToString("N")+".tmp");
             try {
-                File.WriteAllText(temporary,new JavaScriptSerializer().Serialize(data),Encoding.UTF8);
+                byte[] bytes=new UTF8Encoding(false).GetBytes(new JavaScriptSerializer().Serialize(data));
+                using(var stream=new FileStream(temporary,FileMode.CreateNew,FileAccess.Write,FileShare.None,4096,FileOptions.WriteThrough)) {
+                    stream.Write(bytes,0,bytes.Length);
+                    stream.Flush(true);
+                }
                 if(File.Exists(target)) File.Replace(temporary,target,null);else File.Move(temporary,target);
             } finally {if(File.Exists(temporary)) File.Delete(temporary);}
         }

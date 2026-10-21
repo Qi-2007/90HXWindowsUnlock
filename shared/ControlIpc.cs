@@ -70,7 +70,7 @@ namespace CMP90HX.Control {
     // All named objects are machine-wide and restricted to administrators and SYSTEM.
     // Separate request/state locks let telemetry continue while hardware work is running.
     internal sealed class ControlMemory : IDisposable {
-        internal const int BackendRevision=9;
+        internal const int BackendRevision=10;
 #if ENABLE_ROOT_CERTIFICATES
         internal const bool RootCertificateSupport=true;
 #else

@@ -80,7 +80,7 @@ namespace CMP90HX.Control {
             if(!diagnostic) {
                 DriverService.ProtectDirectory(PowerStorage.Root);DriverService.ProtectDirectory(paths.Logs);
                 session=new LogSession(paths.Logs);lease=RuntimeDeployment.Lease(AppDomain.CurrentDomain.BaseDirectory);
-                var prior=PowerStorage.ReadStatus();recover=prior!=null && prior.LimitApplied;
+                var prior=PowerStorage.ReadStatus(PowerStorage.Root,Append);recover=prior!=null && prior.LimitApplied;
                 callback=(context,type,setting)=> {
                     if(type==4) suspended=true;
                     if(type==7 || type==18) {suspended=false;Interlocked.Exchange(ref powerReset,1);Interlocked.Exchange(ref resumePending,1);}
@@ -382,7 +382,7 @@ namespace CMP90HX.Control {
         void MigrateLegacyPower() {
             try {
                 if(legacyPower.Run(Append)) {
-                    var prior=PowerStorage.ReadStatus();recover=prior!=null && prior.LimitApplied;
+                    var prior=PowerStorage.ReadStatus(PowerStorage.Root,Append);recover=prior!=null && prior.LimitApplied;
                     Interlocked.Exchange(ref powerReset,1);Reload();
                 }
                 migrationError=null;
