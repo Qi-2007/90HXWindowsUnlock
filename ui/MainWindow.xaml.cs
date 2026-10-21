@@ -24,6 +24,8 @@ namespace CMP90HX.Control
             internal string DriverState = "未安装";
             internal string DeviceDriver, ReaderDriverState, UnlockDriverState, Backend;
             internal int Count;
+            internal DateTime? UpdatedUtc;
+            internal string MetadataError;
         }
 
         readonly RuntimePaths runtime;
@@ -38,7 +40,6 @@ namespace CMP90HX.Control
         string activeLabel;
         string displayedStage;
 
-        int ticks;
         bool busy;
         bool refreshing;
 
@@ -89,23 +90,20 @@ namespace CMP90HX.Control
             try {if(Onboarding.OpenFirstTime())AppendLog("已在浏览器中打开首次使用引导。\r\n");}
             catch(Exception error){AppendLog("首次引导打开失败，可点击右上角“文档”重试："+error.Message+"\r\n");}
             AppendLog("欢迎使用 CMP 90HX 控制台。\r\n\r\n首次使用请进行环境检查，然后在驱动管理中安装所有驱动。\r\n旧日志已自动清理。\r\n");
-            RefreshStatus(true);
+            RefreshStatus();
             timer.Start();
             UnlockReadDetail.Text="点击“刷新解锁状态”手动更新；解锁完成后会自动更新一次。";
         }
 
         void Window_Closing(object sender, CancelEventArgs e) { /* Backend owns in-flight work. */ }
 
-        async void RefreshStatus(bool requestFresh=false)
+        async void RefreshStatus()
         {
             if (refreshing || closed || App.PreviewState != null) return;
             refreshing = true;
             RefreshButton.IsEnabled = false;
             try {
-                DeviceStatus status = await Task.Run(()=> {
-                    if(requestFresh)BackendClient.Require("RefreshDevices",null,null);
-                    return ReadDeviceStatus();
-                });
+                DeviceStatus status = await Task.Run(()=>ReadDeviceStatus());
                 if (closed) return;
                 GpuText.Text = status.Count > 1 ? "检测到 " + status.Count + " 张 90HX" : status.GpuName;
                 PnpText.Text = status.ProblemCode.HasValue
@@ -117,8 +115,12 @@ namespace CMP90HX.Control
                 DeviceDriverText.Text=status.DeviceDriver??"待读取";
                 UnlockDriverText.Text=ShortState(status.UnlockDriverState);
                 ReaderDriverText.Text=ShortState(status.ReaderDriverState);
-                UpdatedText.Text = "状态更新于 " + DateTime.Now.ToString("HH:mm:ss");
-                if (status.Count == 0) SetBadge("未找到 CMP 90HX", "#FFF5E6", "#995E0C");
+                UpdatedText.Text = status.UpdatedUtc.HasValue?"状态采集于 "+status.UpdatedUtc.Value.ToLocalTime().ToString("HH:mm:ss"):"正在采集设备状态";
+                UpdatedText.ToolTip=status.MetadataError;
+                if(status.MetadataError!=null || status.UpdatedUtc.HasValue && (DateTime.UtcNow-status.UpdatedUtc.Value).TotalSeconds>5)
+                    UpdatedText.Text="设备切换中 · 显示上次状态";
+                if (!status.UpdatedUtc.HasValue) SetBadge("正在采集设备状态", "#EFF6FF", "#195FA0");
+                else if (status.Count == 0) SetBadge("未找到 CMP 90HX", "#FFF5E6", "#995E0C");
                 else if (status.Count != 1) SetBadge("需要唯一一张 90HX", "#FFF1F0", "#A83B32");
                 else if (status.ProblemCode == 22) SetBadge("显卡已停用", "#FFF5E6", "#995E0C");
                 else if (status.ProblemCode != 0) SetBadge("需要检查设备", "#FFF1F0", "#A83B32");
@@ -140,7 +142,7 @@ namespace CMP90HX.Control
         static DeviceStatus ReadDeviceStatus()
         {
             var state=BackendClient.Read();
-            return new DeviceStatus {Count=state.DeviceCount,GpuName=state.GpuName,ProblemCode=state.ProblemCode,DriverState=state.DriverState,DeviceDriver=state.DeviceDriver,ReaderDriverState=state.ReaderDriverState,UnlockDriverState=state.Options.Backend=="Session"?state.SessionDriverState:state.NativeDriverState,Backend=state.Options.Backend};
+            return new DeviceStatus {Count=state.DeviceCount,GpuName=state.GpuName,ProblemCode=state.ProblemCode,DriverState=state.DriverState,DeviceDriver=state.DeviceDriver,ReaderDriverState=state.ReaderDriverState,UnlockDriverState=state.Options.Backend=="Session"?state.SessionDriverState:state.NativeDriverState,Backend=state.Options.Backend,UpdatedUtc=state.DeviceUpdatedUtc,MetadataError=state.DeviceMetadataError};
         }
         static string ShortState(string value) {return String.IsNullOrWhiteSpace(value)?"待读取":value.Split(new[]{'·','\r','\n'},StringSplitOptions.RemoveEmptyEntries)[0].Trim();}
         string observedJob;long observedRevision=-1;string observedLog="";
@@ -188,7 +190,7 @@ namespace CMP90HX.Control
 
                 ElapsedText.Text = "已用时 " + FormatElapsed(elapsed.Elapsed);
             }
-            if (++ticks % 10 == 0) RefreshStatus();
+            RefreshStatus();
         }
 
         static string FormatElapsed(TimeSpan duration)
@@ -268,13 +270,14 @@ namespace CMP90HX.Control
                 int backgroundPid=BackendClient.Read().Pid;
                 await Task.Run(()=>BackendClient.Require("UninstallAll",null,line=>Dispatcher.BeginInvoke(new Action(()=>AppendLog(line+"\r\n")))));
                 timer.Stop();App.CleanupBackendPid=backgroundPid;
-                MessageBox.Show(this,"驱动和证书已卸载。退出后将自动清理程序数据；被占用的文件将在重启后删除。请重启 Windows 使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
+                MessageBox.Show(this,"驱动和证书已卸载。退出后将自动清理程序数据，包含全部错误日志；被占用的文件将在重启后删除。请重启 Windows 使已加载的驱动卸载生效。","卸载完成",MessageBoxButton.OK,MessageBoxImage.Information);
                 SetBusy(false);
                 Application.Current.Shutdown(0);
             } catch(Exception error) {
                 OperationTitle.Text="卸载未完成";
                 OperationDetail.Text=error.Message;
                 AppendLog("UNINSTALL_FAILED: "+error+"\r\n");
+                ErrorLog.TrySave("frontend-uninstall",error+"\r\n"+runText,runDirectory);
                 SetBusy(false);
             }
         }
@@ -327,11 +330,14 @@ namespace CMP90HX.Control
                 OperationDetail.Text = error.Message;
                 FooterText.Text = "未执行";
                 AppendLog("\r\n" + OperationTitle.Text + "：" + error.Message + "\r\n");
+                if(error.NativeErrorCode!=1223)ErrorLog.TrySave("frontend-operation",error+"\r\n"+runText,runDirectory);
             } catch (Exception error) {
                 OperationTitle.Text = label + "无法完成";
                 OperationDetail.Text = error.Message;
                 FooterText.Text = "失败";
                 AppendLog("\r\n错误：" + error + "\r\n");
+                string archive=ErrorLog.TrySave("frontend-operation",error+"\r\n"+runText,runDirectory);
+                if(archive!=null)AppendLog("错误日志已保存："+archive+"\r\n");
             } finally {
                 elapsed.Stop();
                 ElapsedText.Text = "总用时 " + FormatElapsed(elapsed.Elapsed);
@@ -412,7 +418,7 @@ namespace CMP90HX.Control
             if(result.Error!=null && !closed)AcceptOutput("BACKGROUND_FAILED: "+result.Error+"\r\n");
             await Dispatcher.InvokeAsync(delegate {},DispatcherPriority.Background);return result.Code;
         }
-        void RefreshButton_Click(object sender, RoutedEventArgs e) { RefreshStatus(true); }
+        void RefreshButton_Click(object sender, RoutedEventArgs e) { RefreshStatus(); }
         async void ReadUnlockButton_Click(object sender, RoutedEventArgs e) { await RunWorkflow("Status", "解锁状态"); }
 
         void DisplayUnlockSnapshot(string path)

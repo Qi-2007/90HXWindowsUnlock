@@ -14,6 +14,9 @@ namespace CMP90HX.Control {
         Mutex instance;bool owned;DesktopPresence desktop;
         protected override void OnStartup(StartupEventArgs e) {
             base.OnStartup(e);
+            DispatcherUnhandledException+=(sender,failure)=> {
+                if(PreviewState==null)ErrorLog.TrySave("frontend-unhandled",failure.Exception.ToString(),Session==null?null:Session.DirectoryPath);
+            };
             try {
                 bool compact=false,elevated=false;
                 for(int i=0;i<e.Args.Length;i++) {
@@ -44,7 +47,7 @@ namespace CMP90HX.Control {
                 if(PreviewState=="driver") {var management=new ManagementWindow(window,new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory),null,true);MainWindow=management;management.Show();return;}
                 if(PreviewState=="settings") {var management=new ManagementWindow(window,new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory),null,true);var settings=new BackendSettingsWindow(management,true);MainWindow=settings;settings.Show();return;}
                 MainWindow=window;if(PreviewState==null)desktop=new DesktopPresence(window);window.Show();
-            }catch(Exception error){if(SnapshotPath!=null)File.WriteAllText(SnapshotPath+".error.txt",error.ToString());else MessageBox.Show(error.Message,"控制台无法启动");Shutdown(1);}
+            }catch(Exception error){if(SnapshotPath!=null)File.WriteAllText(SnapshotPath+".error.txt",error.ToString());else {ErrorLog.TrySave("frontend-startup",error.ToString());MessageBox.Show(error.Message,"控制台无法启动");}Shutdown(1);}
         }
         internal static string Quote(string value) {return "\""+value.Replace("\"","\\\"")+"\"";}
         internal static bool IsAdministrator(){using(var identity=WindowsIdentity.GetCurrent())return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);}

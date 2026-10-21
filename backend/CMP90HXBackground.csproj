@@ -11,6 +11,8 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\shared\AppData.cs"/>
+    <Compile Include="DevicePresenceMonitor.cs"/>
+    <Compile Include="..\shared\ErrorLog.cs"/>
     <Compile Include="..\shared\SessionRecoveryFailure.cs"/>
     <Reference Include="System.Management"/><Compile Include="LegacyPowerMigration.cs"/><Compile Include="BackendStartup.cs"/>
     <Reference Include="System"/><Reference Include="System.Core"/><Reference Include="System.Web.Extensions"/><Reference Include="System.Xml"/><Reference Include="Microsoft.CSharp"/>

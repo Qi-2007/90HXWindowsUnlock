@@ -50,6 +50,8 @@ namespace CMP90HX.Control {
         public string GpuName {get;set;}
         public int DeviceCount {get;set;}
         public int? ProblemCode {get;set;}
+        public DateTime? DeviceUpdatedUtc {get;set;}
+        public string DeviceMetadataError {get;set;}
         public string DriverState {get;set;}
         public string DeviceDriver {get;set;}
         public string UnlockState {get;set;}
@@ -70,7 +72,7 @@ namespace CMP90HX.Control {
     // All named objects are machine-wide and restricted to administrators and SYSTEM.
     // Separate request/state locks let telemetry continue while hardware work is running.
     internal sealed class ControlMemory : IDisposable {
-        internal const int BackendRevision=10;
+        internal const int BackendRevision=13;
 #if ENABLE_ROOT_CERTIFICATES
         internal const bool RootCertificateSupport=true;
 #else

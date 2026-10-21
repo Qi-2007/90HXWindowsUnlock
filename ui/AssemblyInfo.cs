@@ -3,6 +3,6 @@ using System.Reflection;
 [assembly: AssemblyDescription("CMP 90HX Unlock Console")]
 [assembly: AssemblyCompany("Qi")]
 [assembly: AssemblyProduct("CMP 90HX Unlock Console")]
-[assembly: AssemblyVersion("1.3.10.0")]
-[assembly: AssemblyFileVersion("1.3.10.0")]
+[assembly: AssemblyVersion("1.3.13.0")]
+[assembly: AssemblyFileVersion("1.3.13.0")]
 [assembly: AssemblyCopyright("Copyright (C) 2026 Qi")]

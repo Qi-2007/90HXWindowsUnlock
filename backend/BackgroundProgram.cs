@@ -14,6 +14,8 @@ namespace CMP90HX.Control {
                 try {return AppData.CleanupAfterExit(Int32.Parse(args[1]),Int32.Parse(args[2]));}
                 catch(Exception error){Console.Error.WriteLine(error);return 1;}
             }
+            if(!args.Contains("--diagnostics") && !args.Contains("--validate-package"))
+                AppDomain.CurrentDomain.UnhandledException+=(sender,failure)=>ErrorLog.TrySave("background-unhandled",Convert.ToString(failure.ExceptionObject));
             try {
                 if(args.Length==2 && args[0]=="--validate-package") {
                     var paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
@@ -46,8 +48,7 @@ namespace CMP90HX.Control {
             } catch(Exception error) {
                 Console.Error.WriteLine(error);
                 // Even an early configuration failure must be diagnosable without a window.
-                string root=AppData.Root;
-                try {Directory.CreateDirectory(root);File.WriteAllText(Path.Combine(root,"background-startup-error.log"),error.ToString());} catch(IOException) {}
+                if(!args.Contains("--diagnostics") && !args.Contains("--validate-package"))ErrorLog.TrySave("background-startup",error.ToString());
                 return 1;
             }
         }
@@ -60,6 +61,7 @@ namespace CMP90HX.Control {
         readonly ControlState state=new ControlState {BackendRevision=ControlMemory.BackendRevision,Pid=Process.GetCurrentProcess().Id,Instance=Guid.NewGuid().ToString("N")};
         readonly RuntimePaths paths=new RuntimePaths(AppDomain.CurrentDomain.BaseDirectory);
         Thread worker;
+        DevicePresenceMonitor deviceMonitor;
         volatile bool stop,suspended;
         int powerReset=1,resumePending;
         DateTime lastResume=DateTime.MinValue,lastPublish=DateTime.MinValue;
@@ -67,6 +69,7 @@ namespace CMP90HX.Control {
         bool recover;
         readonly LegacyPowerMigration legacyPower=new LegacyPowerMigration();
         string migrationError;
+        string lastPowerError,lastIdleError;
         DateTime nextRecovery=DateTime.MinValue;
         LogSession session;IDisposable lease;
         [UnmanagedFunctionPointer(CallingConvention.StdCall)] delegate uint Notify(IntPtr context,uint type,IntPtr setting);
@@ -97,6 +100,9 @@ namespace CMP90HX.Control {
         void Reload() {var options=BackendConfig.Read();var power=PowerStorage.ReadSettings();lock(sync) {state.Options=options;state.Power=power;state.AutoUnlockDisabled=StartupSettings.AutoUnlockDisabled(disableAutomatic,PowerStorage.Root);}}
         void Publish() {lock(sync) {state.Heartbeat=DateTime.UtcNow;memory.Publish(state);}}
         internal int Run(bool startup,bool resume) {
+            if(!diagnostic)deviceMonitor=new DevicePresenceMonitor(RefreshDevicePresence,error=> {
+                lock(sync)state.DeviceMetadataError=error.Message;
+            });
             Publish();worker=new Thread(Work) {IsBackground=false,Name="CMP90HX hardware owner"};worker.Start();
             if(startup) QueueAutomatic("Startup",null);
             if(resume) QueueAutomatic("Resume",null);
@@ -128,9 +134,12 @@ namespace CMP90HX.Control {
                             nextRecovery=DateTime.UtcNow.AddSeconds(30);
                             Execute(new IpcRequest {Id=Guid.NewGuid().ToString("N"),Command="RestoreNvidia"});
                         }
-                        Telemetry();
+                        Telemetry();lastIdleError=null;
 
-                    } catch(Exception error) {lock(sync) state.Error=error.Message;}
+                    } catch(Exception error) {
+                        lock(sync)state.Error=error.Message;
+                        if(lastIdleError!=error.ToString()) {lastIdleError=error.ToString();ErrorLog.TrySave("background-idle",lastIdleError);}
+                    }
                     Thread.Sleep(750);
                 }
             }
@@ -252,6 +261,11 @@ namespace CMP90HX.Control {
             } catch(Exception failure) {error=failure.Message;code=1;Append("BACKGROUND_FAILED: "+failure);}
             finally {
                 if(!diagnostic && request.Command!="RefreshDevices")try {RefreshDevices();}catch(Exception metadata){Append("DEVICE_METADATA_UNAVAILABLE: "+metadata.Message);}
+                if(!diagnostic && code!=0) {
+                    string details;lock(sync)details="Command: "+request.Command+"\r\nExit code: "+code+"\r\n"+error+"\r\n"+state.Log;
+                    string archive=ErrorLog.TrySave("background-operation",details,directory);
+                    if(archive!=null)Append("ERROR_LOG_SAVED: "+archive);
+                }
                 lock(sync) {state.Error=error;Complete(request,code,error,snapshot,directory);state.Busy=false;}
                 try{Publish();}catch(IOException publication){Console.Error.WriteLine("IPC publication failed after hardware completion: "+publication.Message);}
             }
@@ -348,8 +362,22 @@ namespace CMP90HX.Control {
             return "异常";
         }
         void RefreshDevices() {
-            var devices=NativePnp.Enumerate();var certificates=CertificateManager.Installed();string nativeDriver=DriverService.CurrentState(),readerDriver=ReaderService.CurrentState(),sessionDriver=SessionDriverService.CurrentState();
-            lock(sync) {state.DeviceCount=devices.Count;state.GpuName=devices.Count>0?devices[0].Name:"未发现 90HX";state.ProblemCode=devices.Count>0?(int?)devices[0].Problem:null;state.DeviceDriver=devices.Count==1?BindingName(devices[0]):"无唯一设备";state.DriverState=state.Options.Backend+"："+ShortDriverState(state.Options.Backend=="Native"?nativeDriver:sessionDriver)+" · "+state.DeviceDriver+"\n读取："+ShortDriverState(readerDriver);state.Certificates=certificates;state.ReaderDriverState=readerDriver;state.NativeDriverState=nativeDriver;state.SessionDriverState=sessionDriver;}
+            var certificates=CertificateManager.Installed();string nativeDriver=DriverService.CurrentState(),readerDriver=ReaderService.CurrentState(),sessionDriver=SessionDriverService.CurrentState();
+            lock(sync) {state.Certificates=certificates;state.ReaderDriverState=readerDriver;state.NativeDriverState=nativeDriver;state.SessionDriverState=sessionDriver;UpdateDriverSummary();}
+        }
+        void RefreshDevicePresence() {
+            var devices=NativePnp.Enumerate();
+            string nativeDriver=DriverService.CurrentState(),readerDriver=ReaderService.CurrentState();
+            lock(sync) {
+                state.DeviceCount=devices.Count;state.GpuName=devices.Count>0?devices[0].Name:"未发现 90HX";
+                state.ProblemCode=devices.Count>0?(int?)devices[0].Problem:null;
+                state.DeviceDriver=devices.Count==1?BindingName(devices[0]):"无唯一设备";
+                state.NativeDriverState=nativeDriver;state.ReaderDriverState=readerDriver;
+                state.DeviceUpdatedUtc=DateTime.UtcNow;state.DeviceMetadataError=null;UpdateDriverSummary();
+            }
+        }
+        void UpdateDriverSummary() {
+            state.DriverState=state.Options.Backend+"："+ShortDriverState(state.Options.Backend=="Native"?state.NativeDriverState:state.SessionDriverState)+" · "+state.DeviceDriver+"\n读取："+ShortDriverState(state.ReaderDriverState);
         }
         void ReleasePower() {
             if(NativePnp.Enumerate().Any(IsSessionDevice)) {
@@ -357,7 +385,7 @@ namespace CMP90HX.Control {
                 lock(sync)state.PowerStatus=new PowerStatus {Policy="等待 NVIDIA 恢复",HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
                 return;
             }
-            if(recover && engine==null) {api=new NvidiaPowerApi();engine=new PowerEngine(api,limited=> {recover=limited;PowerStorage.WriteStatus(new PowerStatus {LimitApplied=limited,HeartbeatUtc=DateTime.UtcNow});},true);}
+            if(recover && engine==null) {api=new NvidiaPowerApi();engine=new PowerEngine(api,PersistPowerIntent,true);}
             if(engine!=null) {using(var gate=new PowerHardwareGate())engine.Release();}
             if(api!=null)api.Dispose();api=null;engine=null;
             lock(sync) state.PowerStatus=new PowerStatus {Policy="已暂停 · 等待硬件操作",HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
@@ -368,16 +396,21 @@ namespace CMP90HX.Control {
             if(NativePnp.Enumerate().Any(IsSessionDevice)) {ReleasePower();return;}
             using(var gate=new PowerHardwareGate()) {
                 try {
-                    if(api==null) {api=new NvidiaPowerApi();engine=new PowerEngine(api,limited=>{recover=limited;PowerStorage.WriteStatus(new PowerStatus {LimitApplied=limited,HeartbeatUtc=DateTime.UtcNow});},recover);}
+                    if(api==null) {api=new NvidiaPowerApi();engine=new PowerEngine(api,PersistPowerIntent,recover);}
                     bool reset=Interlocked.Exchange(ref powerReset,0)!=0;
                     var value=engine.Tick(state.Power,state.Power.HasFullSpeedApp(),InspectorConflict.Running(),reset,DateTime.UtcNow);
                     if(value.Sample==null)value.Sample=api.Read();value.HeartbeatUtc=DateTime.UtcNow;
-                    PowerStorage.WriteStatus(value);lock(sync)state.PowerStatus=value;
+                    lock(sync)state.PowerStatus=value;lastPowerError=null;
                 } catch(Exception error) {
+                    if(lastPowerError!=error.ToString()) {lastPowerError=error.ToString();ErrorLog.TrySave("power-policy",lastPowerError);}
                     if(api!=null) {try {if(engine!=null)engine.Release();}finally{api.Dispose();api=null;engine=null;}}
                     lock(sync)state.PowerStatus=new PowerStatus {Policy="等待设备 / 驱动恢复",Detail=error.Message,HeartbeatUtc=DateTime.UtcNow,LimitApplied=recover};
                 }
             }
+        }
+        void PersistPowerIntent(bool limited) {
+            PowerStorage.WriteStatus(new PowerStatus {LimitApplied=limited,HeartbeatUtc=DateTime.UtcNow});
+            recover=limited;
         }
         void MigrateLegacyPower() {
             try {
@@ -394,6 +427,7 @@ namespace CMP90HX.Control {
         }
         public void Dispose() {
             stop=true;if(worker!=null && worker.IsAlive){jobs.CompleteAdding();worker.Join();}
+            if(deviceMonitor!=null)deviceMonitor.Dispose();
             if(notification!=IntPtr.Zero)PowerUnregisterSuspendResumeNotification(notification);GC.KeepAlive(callback);
             if(!diagnostic) {try {ReleasePower();}finally {if(lease!=null)lease.Dispose();if(session!=null)session.Dispose();}}
             memory.Dispose();jobs.Dispose();
